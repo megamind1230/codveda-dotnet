@@ -81,16 +81,17 @@ Features:
 # diff between .net framwork & .net core
 
 
-| criteria                               | .net framework                                                                                         | .net core/.net                                                                                                                |
-| flow                                   | App Code > .net framework class libraries (FCL/BCL) > compiler (csc) > IL > CLR > windows machine code | app code > .net core base libraries (coreFX) + nuget packages >Roslyn compiler > IL > coreCLR > OS proper native machine code |
-| design                                 | bulky, huge per install                                                                                | features are modular , package segmeneted                                                                                     |
-| size                                   | huge                                                                                                   | smaller, faster to deploy                                                                                                     |
-| performance                            | old, slower                                                                                            | fast, modern                                                                                                                  |
-| platform                               | only windows                                                                                           | cross-platform                                                                                                                |
-| apps with diff version on same machine | not possible, cuz the install was system-wide                                                          | possible, cuz apps can be self-contained/backward compatibility                                                               |
-| lightweight deployment                 | no                                                                                                     | yes                                                                                                                           |
-| open source                            | no                                                                                                     | yes                                                                                                                           |
-| containers,clouds                      | no                                                                                                     | yes                                                                                                                           |
+| Criteria | .NET Framework | .NET Core / .NET |
+|----------|----------------|------------------|
+| **Flow** | App Code > .NET Framework class libraries (FCL/BCL) > compiler (csc) > IL > CLR > Windows machine code | App code > .NET Core base libraries (CoreFX) + NuGet packages > Roslyn compiler > IL > CoreCLR > OS proper native machine code |
+| **Design** | Bulky, huge per install | Features are modular, package segmented |
+| **Size** | Huge | Smaller, faster to deploy |
+| **Performance** | Old, slower | Fast, modern |
+| **Platform** | Only Windows | Cross-platform |
+| **Apps with different versions on same machine** | Not possible, because the install was system-wide | Possible, because apps can be self-contained / backward compatible |
+| **Lightweight deployment** | No | Yes |
+| **Open source** | No | Yes |
+| **Containers, clouds** | No | Yes |
 
 
 # NuGet: the package/dependency manager
