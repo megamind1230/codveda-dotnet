@@ -18,12 +18,14 @@
 
 # 1. .NET Framework
 
-| Feature        | .NET Framework       |
-| OS Support     | Windows only         |
-| Open Source    | Mostly no            |
-| Performance    | Older/slower         |
-| Cross-platform | No                   |
-| Current Status | Legacy / maintenance, still supported but not active |
+| Feature | .NET Framework | .NET Core / .NET |
+|---------|----------------|------------------|
+| **OS Support** | Windows only | Windows, Linux, macOS |
+| **Open Source** | Mostly no | Yes (MIT license) |
+| **Performance** | Older/slower | Fast, modern (optimized runtime) |
+| **Cross-platform** | No | Yes |
+| **Current Status** | Legacy / maintenance, still supported but not active | Active development, future of .NET |
+
 
 ## Common Technologies
 
@@ -31,13 +33,14 @@
 
 # 2. .NET Core { first step into a better future }
 
-| Feature        | .NET Core   |
-| Cross-platform | Yes         |
-| Open source    | Yes         |
-| Fast           | Much faster |
-| Lightweight    | Yes         |
-| Cloud-ready    | Yes         |
-| Docker support | Excellent   |
+| Feature | .NET Framework | .NET Core / .NET |
+|---------|----------------|------------------|
+| **Cross-platform** | No | Yes |
+| **Open source** | Mostly no | Yes |
+| **Fast** | Older/slower | Much faster |
+| **Lightweight** | No | Yes |
+| **Cloud-ready** | No | Yes |
+| **Docker support** | Limited | Excellent |
 
 > After .NET core 3.1, Microsoft renamed everything.
 
