@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="FileOrganizer.Cli/FileOrganizer.Cli.csproj" />
+  <Project Path="FileOrganizer.Core/FileOrganizer.Core.csproj" />
+  <Project Path="FileOrganizer.Gui/FileOrganizer.Gui.csproj" />
+</Solution>

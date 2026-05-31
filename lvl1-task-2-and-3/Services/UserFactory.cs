@@ -1,6 +1,6 @@
 namespace Task2.Services;
 using Task2.Models;
-
+using Task2.Exceptions;
 
 public static class UserFactory
 {
@@ -15,7 +15,7 @@ public static class UserFactory
             "designer" => new Designer(name, age, profession),
             "writer" or "author" => new Writer(name, age, profession),
             "manager" => new Manager(name, age, profession),
-            _ => new User(name, age, profession)
+            _ => throw new UnknownProfessionException(profession)
         };
     }
 }

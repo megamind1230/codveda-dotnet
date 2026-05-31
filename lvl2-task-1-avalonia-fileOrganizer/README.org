@@ -1,0 +1,183 @@
+* File Organizer
+
+Cross-platform file organization tool built with .NET + Avalonia.
+
+** Prerequisites
+
+- .NET 8.0 SDK or later
+- Avalonia UI templates (optional, for development):
+  #+begin_src sh
+  dotnet new install Avalonia.Templates
+  #+end_src
+
+** Build
+
+#+begin_src sh
+dotnet restore
+dotnet build
+#+end_src
+
+** Usage
+
+*** CLI
+
+The CLI has two modes:
+
+**** Interactive mode (default)
+
+Run with =--source= alone to enter the interactive dashboard:
+
+#+begin_src sh
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads
+#+end_src
+
+Menu:
+
+```
+     File Organizer  |  15 files remaining
+    ─────────────────────────────────────────
+      1. Container   2. Patterns
+      3. General     l. List
+      r. Reverse     q. Quit
+```
+
+| Phase        | Description                                                                                                |
+|--------------+------------------------------------------------------------------------------------------------------------|
+| 1. Container | Lists remaining files by number — type `2,3` or `1-3` to select, then name a folder to move them into      |
+| 2. Patterns  | Enter comma-separated keywords (e.g. `emacs,report`) — matching files are moved into keyword-named folders |
+| 3. General   | Sorts all remaining files by extension category (=imgs=, =docs=, =aud=, etc.)                              |
+| r. Reverse   | Undo — pulls all files from subfolders back to the source root                                             |
+| q. Quit      | Exit                                                                                                       |
+
+Files are removed from the remaining list as each phase runs, so you can run phases in any order.
+
+**** One-shot mode
+
+Use =--one-shot= for the original single-command behavior:
+
+#+begin_src sh
+# Basic organize (sorts by file type)
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot
+
+# Named patterns (files containing "emacs" or "report" go into respective folders)
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot --patterns "emacs,report"
+
+# Preview only — no files are moved
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot --patterns "emacs" --dry-run
+
+# Regex patterns — files starting with "IMG_" or containing 4 consecutive digits
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot --patterns "^IMG_,\d{4}" --regex
+
+# Reverse — move files from subfolders back to source
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot --reverse --dry-run
+#+end_src
+
+Arguments:
+
+| Argument     | Required | Description                                                    |
+|--------------+----------+----------------------------------------------------------------|
+| =--source=   | Yes      | Path to the directory to organize                              |
+| =--patterns= | No       | Comma-separated keywords/regex patterns for named-pattern pass |
+| =--dry-run=  | No       | Flag — preview only, no files are moved                        |
+| =--reverse=  | No       | Flag — undo organization, pull files from subfolders up        |
+| =--one-shot= | No       | Flag — one-shot mode (default is interactive dashboard)        |
+| =--regex=    | No       | Flag — interpret =--patterns= values as neovim-style regular expression |
+
+*** Bash script
+
+An equivalent bash version is included as =file-organizer=:
+
+#+begin_src sh
+./file-organizer --source ~/Downloads                           # interactive mode
+./file-organizer --source ~/Downloads --one-shot                # sort by category
+./file-organizer --source ~/Downloads --patterns "report,photo" --one-shot
+./file-organizer --source ~/Downloads --patterns "^IMG_,\d{4}" --regex --one-shot
+./file-organizer --source ~/Downloads --reverse --dry-run
+#+end_src
+
+All arguments are identical to the CLI version above.
+
+*Note on regex patterns:* In regex mode, bare =*= is treated as a regex quantifier
+(invalid on its own) — not as a glob wildcard. Use =.*= to match any sequence of
+characters, e.g. =--patterns ".*report.*" --regex=.
+
+*** GUI
+
+#+begin_src sh
+dotnet run --project FileOrganizer.Gui
+#+end_src
+
+Layout (6 rows):
+
+| Row | Section    | Description                                                                 |
+|-----+------------+-----------------------------------------------------------------------------|
+|   0 | Source Dir | Browse or type the directory path                                           |
+|   1 | Container  | Enter a folder name, select files in the table, click *Add to Container*    |
+|   2 | Patterns   | Type a keyword, press Enter to add a tag; check *Regex* for regex matching  |
+|   3 | Tags       | Tag chips with ✕ to remove individual patterns                             |
+|   4 | Preview    | Table with per-file checkboxes, target folder column, and select-all header |
+|   5 | Bottom     | *Dry Run*, *Organize!*, *Reverse!*, *Reset*, progress bar, status text      |
+
+Features:
+- **Container** — Move selected files into a named subfolder
+- **Patterns — Regex** — Check the *Regex* checkbox to interpret keywords as regular expressions
+- **Patterns — Create Patterns** — Move selected files that match any pattern into keyword-named folders
+- **Live matching preview** — As you type in the pattern box or toggle Regex, rows in the table highlight in real-time to show which files match the current pattern
+- **General Organize** — Sort remaining files into category folders (=imgs=, =docs=, =aud=, etc.)
+- **Reverse** — Move all files from subfolders back to the root
+- **Reset** — Clear all fields, patterns, table, and flags
+- **Preview table** — Per-file checkboxes filter which files participate in Container/Patterns/Organize actions; header checkbox toggles select-all/deselect-all
+- **Dry Run** — Preview without moving files
+
+** How it works
+
+The tool uses a two-pass approach:
+
+1. *Pass 1 — Named Patterns:* Files whose names contain any user-provided keyword are moved into a folder named after that keyword.
+2. *Pass 2 — Category Sort:* Remaining files are sorted into folders by file extension category:
+
+| Category     | Extensions                                               |
+|--------------+----------------------------------------------------------|
+| =imgs=       | .jpg .jpeg .png .gif .bmp .webp .svg .ico                |
+| =docs=       | .pdf .doc .docx .xls .xlsx .ppt .pptx .txt .rtf .csv .md |
+| =aud=        | .mp3 .wav .flac .aac .ogg .wma .m4a                      |
+| =vid=        | .mp4 .mkv .avi .mov .wmv .flv .webm                      |
+| =archives=   | .zip .rar .7z .tar .gz .bz2                              |
+| =installers= | .exe .msi .deb .rpm .AppImage                            |
+| =others=     | Anything not listed above                                |
+
+** Reverse mode
+
+Undoes the organization: scans every subfolder inside the source directory and moves all files back up to the source root. File name conflicts are handled by appending =(1)=, =(2)=, etc.
+
+#+begin_src sh
+# CLI
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --reverse
+
+# Preview reverse
+dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --reverse --dry-run
+#+end_src
+
+In the GUI, click the *Reverse!* button (works with the Dry Run checkbox too).
+
+** Logging
+
+Both CLI and GUI write structured logs to =logs/app-YYYYMMDD.log= via
+Serilog.  The logs capture scan results, moved/skipped files, invalid
+regex patterns, and errors.  Files are rolled daily and kept in a
+=logs/= directory next to the executable.
+
+** Project structure
+
+- =FileOrganizer.Core/= — Shared class library (models, services, orchestrator)
+- =FileOrganizer.Cli/= — Console frontend
+- =FileOrganizer.Gui/= — Avalonia desktop GUI
+
+See =bug-fixes.org= for a list of known bugs and their fixes.
+
+** careful with this
+
+#+begin_src text
+sometime you gonna be moving files into folders/directories starting with `.` especially when working with regex
+which makes that folder/directory =hidden= by default in some =File Managers=
+#+end_src

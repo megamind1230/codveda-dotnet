@@ -1,0 +1,102 @@
+* What is the .NET Ecosystem?
+- made by Microsoft for building:
+  - Desktop apps , Web apps , APIs , Mobile apps , Games , Cloud
+    services , AI tools
+- *Languages* → mainly C#, then F# or VB.NET
+- *the CLR Runtime* → translates the IL (intermediate lang) + executes
+  your program
+- *built-in Libraries* → ready-made functionality
+- *SDKs & dotnet CLI tools* → build, test, publish apps
+- *Frameworks* → ASP.NET, MAUI, Entity Framework, Avalonia ..
+
+* evolution on timeline
+1. *.NET Framework* (old Windows-only era)
+2. *.NET Core* (modern cross-platform reboot)
+3. *Modern .NET (5/6/7/8+)* (unified platform)
+
+* 1. .NET Framework
+| Feature          | .NET Framework                                       | .NET Core / .NET                   |
+|------------------+------------------------------------------------------+------------------------------------|
+| *OS Support*     | Windows only                                         | Windows, Linux, macOS              |
+| *Open Source*    | Mostly no                                            | Yes (MIT license)                  |
+| *Performance*    | Older/slower                                         | Fast, modern (optimized runtime)   |
+| *Cross-platform* | No                                                   | Yes                                |
+| *Current Status* | Legacy / maintenance, still supported but not active | Active development, future of .NET |
+
+** Common Technologies
+- Windows Forms , WPF = Windows Presentation Foundation , ASP.NET MVC
+  (old) , WebForms , WCF = Windows Communication Foundation
+
+* 2. .NET Core { first step into a better future }
+| Feature          | .NET Framework | .NET Core / .NET |
+|------------------+----------------+------------------|
+| *Cross-platform* | No             | Yes              |
+| *Open source*    | Mostly no      | Yes              |
+| *Fast*           | Older/slower   | Much faster      |
+| *Lightweight*    | No             | Yes              |
+| *Cloud-ready*    | No             | Yes              |
+| *Docker support* | Limited        | Excellent        |
+
+#+begin_quote
+After .NET core 3.1, Microsoft renamed everything.
+#+end_quote
+
+* 3. Modern .NET (.NET 5/6/7/8..) { a more modern continuation }
+
+#+begin_quote
+it's all .NET only no more =Core=
+#+end_quote
+
+Features: * LTS (Long-Term Support), Very stable, Better performance *
+Minimal APIs * Hot Reload * cloud improvements * Native AOT =
+Ahead-Of-Time compilation * Better ASP.NET * Better Blazor * Better
+container support * Improved MAUI * AI integrations
+
+* Famous Parts of Modern .NET
+- ASP.NET Core
+  - backend servers
+  - websites
+  - APIs
+- Entity Framework Core
+  - ORM ( object relational mapping )
+- CLI =dotnet=
+
+* what is the CLR (common lang runtime)
+
+#+begin_quote
+the engine doing these * memory management, garbage collection *
+security * JIT/AOT compilation * just-in-time {while the app running you
+compile some parts} * ahead-of-time {before the app runs you compile
+some parts} * threading
+#+end_quote
+
+* diff between .net framwork & .net core
+| Criteria                                       | .NET Framework                                                                                         | .NET Core / .NET                                                                                                               |
+|------------------------------------------------+--------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------|
+| *Flow*                                         | App Code > .NET Framework class libraries (FCL/BCL) > compiler (csc) > IL > CLR > Windows machine code | App code > .NET Core base libraries (CoreFX) + NuGet packages > Roslyn compiler > IL > CoreCLR > OS proper native machine code |
+| *Design*                                       | Bulky, huge per install                                                                                | Features are modular, package segmented                                                                                        |
+| *Size*                                         | Huge                                                                                                   | Smaller, faster to deploy                                                                                                      |
+| *Performance*                                  | Old, slower                                                                                            | Fast, modern                                                                                                                   |
+| *Platform*                                     | Only Windows                                                                                           | Cross-platform                                                                                                                 |
+| *Apps with different versions on same machine* | Not possible, because the install was system-wide                                                      | Possible, because apps can be self-contained / backward compatible                                                             |
+| *Lightweight deployment*                       | No                                                                                                     | Yes                                                                                                                            |
+| *Open source*                                  | No                                                                                                     | Yes                                                                                                                            |
+| *Containers, clouds*                           | No                                                                                                     | Yes                                                                                                                            |
+
+* NuGet: the package/dependency manager
+** why? NuGet
+it automates: * downloading * updates * versioning * dependency
+resolution * easy project file integrations * resolves conflicts a bit
+
+** a package structure
+#+begin_src text
+metadata
+DLL assemblies
+dependencies
+version
+build scripts
+#+end_src
+
+** package restore meaning
+=dotnet restore= NuGet restores missing packages automatically. Usually
+also happens during: * build * run * publish

@@ -17,13 +17,13 @@ public class Artist : User
 
     public override List<string> GetRecommendations()
     {
-        var workWay = Answers[0];
+        var workMethod = Answers[0];
         var graphicsStyle = Answers[1];
         var needCollab = Answers[2];
 
         var tools = new List<string>();
 
-        if (workWay == "digital" || workWay == "both")
+        if (workMethod == "digital" || workMethod == "both")
         {
             if (graphicsStyle == "raster" || graphicsStyle == "both")
             {
@@ -39,7 +39,7 @@ public class Artist : User
             }
         }
 
-        if (workWay == "traditional" || workWay == "both")
+        if (workMethod == "traditional" || workMethod == "both")
         {
             tools.Add("Adobe Fresco — blends digital and traditional painting techniques");
             tools.Add("Rebelle 7 — simulates real watercolor and oil paints");

@@ -1,0 +1,1154 @@
+invoices = فواتير
+* JWT Authentication
+=JWT = JSON Web Token=
+
+Example:
+
+#+begin_src text
+eyJhbGciOi...
+#+end_src
+
+** Login Example
+User sends:
+
+#+begin_src json
+{
+  "username": "hassan",
+  "password": "secret"
+}
+#+end_src
+
+Server verifies credentials.
+
+If valid:
+
+#+begin_src json
+{
+  "token": "eyJhbGciOi..."
+}
+#+end_src
+
+
+* Configuring JWT in ASP.NET Core
+Install package:
+
+#+begin_src sh
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+#+end_src
+
+Configure in =Program.cs=:
+
+#+begin_src csharp
+builder.Services
+    .AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true
+            };
+    });
+#+end_src
+
+Enable middleware: Order matters.
+
+#+begin_src csharp
+app.UseAuthentication();
+app.UseAuthorization();
+#+end_src
+
+
+* Protecting Endpoints
+
+
+** Only authenticated users can access.
+#+begin_src csharp
+[Authorize]
+public IActionResult Dashboard()
+{
+    return View();
+}
+#+end_src
+
+
+
+** Anonymous Access
+#+begin_src csharp
+[AllowAnonymous]
+public IActionResult Login()
+{
+    return View();
+}
+#+end_src
+
+
+* Claims
+Claims are pieces of information about a user.
+
+Example:
+
+#+begin_src text
+Name = Hassan
+Department = IT
+Country = Egypt
+#+end_src
+
+
+** Creating Claims
+#+begin_src csharp
+var claims = new[]
+{
+    new Claim(ClaimTypes.Name, "Hassan"),
+    new Claim(ClaimTypes.Email, "user@example.com")
+};
+#+end_src
+
+
+** Reading Claims
+#+begin_src csharp
+var username = User.Identity?.Name;
+#+end_src
+
+or
+
+#+begin_src csharp
+var email = User.FindFirst(ClaimTypes.Email)?.Value;
+#+end_src
+
+
+* Role-Based Authorization
+The simplest
+Users belong to roles.
+
+Example:
+
+#+begin_src text
+Admin
+Manager
+Teacher
+Student
+#+end_src
+
+
+** Protect Route
+
+Only admins can enter.
+#+begin_src csharp
+[Authorize(Roles = "Admin")]
+public IActionResult AdminPanel()
+{
+    return View();
+}
+#+end_src
+
+
+
+** Multiple Roles
+Admin OR Manager
+#+begin_src csharp
+[Authorize(Roles = "Admin,Manager")]
+#+end_src
+
+
+
+* Claims-Based Authorization
+#+begin_src text
+Department = HR
+Department = Finance
+CanApprove = true
+CanExport = true
+#+end_src
+
+
+** Policy Example
+Register policy:
+
+#+begin_src csharp
+builder.Services.AddAuthorization(options => {
+    options.AddPolicy(
+        "CanApproveInvoices",
+        policy =>
+            policy.RequireClaim(
+                "CanApprove",
+                "true"));
+});
+#+end_src
+
+
+Use it:
+
+#+begin_src csharp
+[Authorize(Policy = "CanApproveInvoices")]
+#+end_src
+This is often preferred in enterprise systems.
+
+
+
+
+* OpenID Connect (OIDC)
+
+OAuth is: Others/Delegated authorization
+    OIDC is built on top of OAuth 2.0.
+
+OAuth answers: What can this app access?
+
+OIDC answers:  Who is this user?
+
+
+When you use: - Google Login - Microsoft Login - GitHub Login - Auth0 - Okta
+    You are usually using: =OAuth 2.0 + OpenID Connect=... together.
+
+
+- Google Authentication
+- Microsoft Authentication
+    The application never stores passwords.
+    Identity provider handles them.
+
+
+* Authentication Middleware Pipeline
+Request:
+
+#+begin_src text
+GET /admin
+#+end_src
+
+Pipeline:
+
+#+begin_src text
+UseAuthentication()
+        ↓
+Reads cookie/JWT
+        ↓
+Builds User object
+        ↓
+UseAuthorization()
+        ↓
+Checks policy
+        ↓
+Controller
+#+end_src
+
+If authorization fails: 401 Unauthorized, No JWT supplied.
+or
+403 Forbidden
+
+
+
+* Claims
+
+Think of it as:
+
+#+begin_src text
+"The authentication system claims that this fact about the user is true."
+#+end_src
+
+Examples:
+
+#+begin_src text
+Name = Hassan
+Email = hassan@example.com
+Country = Egypt
+Department = IT
+Role = Admin
+#+end_src
+
+When a user logs in, ASP.NET Core creates a =ClaimsPrincipal=.
+
+Internally it looks conceptually like:
+
+#+begin_src text
+User
+ ├── Name = Hassan
+ ├── Email = hassan@example.com
+ ├── Country = Egypt
+ └── Role = Admin
+#+end_src
+
+Every authorization decision is based on these claims.
+
+
+** Where do claims come from?
+*** JWT
+A JWT contains claims.
+
+Example JWT payload:
+
+#+begin_src json
+{
+  "sub": "123",
+  "name": "Hassan",
+  "email": "hassan@example.com",
+  "role": "Admin"
+}
+#+end_src
+
+When ASP.NET validates the JWT:
+
+#+begin_src text
+JWT
+  ↓
+ClaimsPrincipal
+  ↓
+User object
+#+end_src
+
+Now:
+
+#+begin_src csharp
+User.Identity?.Name
+#+end_src
+
+returns:
+
+#+begin_src text
+Hassan
+#+end_src
+
+because it came from a claim.
+
+
+** Reading claims
+#+begin_src csharp
+var email =
+    User.FindFirst(ClaimTypes.Email)?.Value;
+#+end_src
+
+means:
+
+#+begin_src text
+Find claim named Email, Return its value
+#+end_src
+
+If JWT contains:
+
+#+begin_src json
+{
+  "email": "hassan@example.com"
+}
+#+end_src
+
+Result:
+
+#+begin_src text
+hassan@example.com
+#+end_src
+
+
+* Roles {groups}
+A role is simply a special type of claim.
+
+
+
+** Why roles exist
+
+Instead of having to check permissions individually.
+
+
+you say:
+
+#+begin_src text
+Admins can delete users
+#+end_src
+
+Much easier.
+
+** Example
+JWT:
+{
+  "name": "Hassan",
+  "role": "Admin"
+}
+
+Controller: [Authorize(Roles = "Admin")]
+
+ASP.NET asks: Does user have role Admin?
+
+If yes: Access granted
+
+If no: 403 Forbidden
+
+
+* Policies 
+Policies are where authorization becomes powerful.
+
+Roles answer:
+
+#+begin_src text
+WHO are you?
+#+end_src
+
+Policies answer:
+
+#+begin_src text
+WHAT conditions must be true?
+#+end_src
+
+
+Imagine invoice approval.
+
+Bad design:
+
+#+begin_src text
+Admin
+Manager
+SeniorManager
+FinanceManager
+InvoiceApprover
+#+end_src
+
+Role explosion begins.
+
+Soon:
+
+#+begin_src text
+  Admin
+  Manager
+  HRManager
+  FinanceManager
+  FinanceApprover
+  SeniorFinanceApprover
+  ...
+#+end_src
+
+
+Instead use claims.
+
+JWT:
+
+#+begin_src json
+{
+  "name": "Hassan",
+  "CanApprove": "true"
+}
+#+end_src
+
+Policy:
+
+#+begin_src csharp
+options.AddPolicy(
+    "CanApproveInvoices",
+    policy =>
+        policy.RequireClaim(
+            "CanApprove",
+            "true"));
+#+end_src
+
+Now:
+
+#+begin_src csharp
+[Authorize(Policy = "CanApproveInvoices")]
+#+end_src
+
+ASP.NET checks:
+
+#+begin_src text
+Does claim CanApprove exist?
+value true?
+#+end_src
+
+If yes:
+
+#+begin_src text
+Access granted
+#+end_src
+
+
+** Why enterprises love policies
+Because requirements are usually:
+
+#+begin_src text
+Can approve invoices
+Can export data
+Can access payroll
+Can create projects
+#+end_src
+
+not:
+
+#+begin_src text
+Must be Manager
+#+end_src
+
+Policies model business rules better.
+
+
+* OAuth 2.0
+This is the most misunderstood topic.
+
+OAuth is NOT login.
+
+OAuth is:
+
+#+begin_src text
+Permission delegation
+#+end_src
+
+Meaning:
+
+#+begin_src text
+I allow App A
+to access Resource B
+on my behalf.
+#+end_src
+
+
+Example:
+
+#+begin_src text
+Calendar App
+    ↓
+Needs Google Calendar
+#+end_src
+
+User grants permission.
+
+Google gives token.
+
+Calendar App can now access:
+
+#+begin_src text
+Your calendar
+#+end_src
+
+without knowing your password.
+
+OAuth answers:
+
+#+begin_src text
+What is this app allowed to do?
+#+end_src
+
+NOT:
+
+#+begin_src text
+Who is the user?
+#+end_src
+
+
+* OpenID Connect (OIDC)
+OIDC adds identity to OAuth.
+
+OAuth:
+
+#+begin_src text
+What can this app access?
+#+end_src
+
+OIDC:
+
+#+begin_src text
+Who is this user?
+#+end_src
+
+
+When clicking:
+
+#+begin_src text
+Login with Google
+#+end_src
+
+Google returns:
+
+#+begin_src json
+{
+  "name": "Hassan",
+  "email": "hassan@example.com"
+}
+#+end_src
+
+This identity information comes through OIDC.
+
+
+** Easy interview answer
+Question:
+
+#+begin_src text
+Difference between OAuth and OpenID Connect?
+#+end_src
+
+Answer:
+
+#+begin_src text
+OAuth 2.0 is an authorization framework that grants delegated access to resources.
+
+OpenID Connect(OIDC) is an identity layer built on top of OAuth 2.0 that provides user authentication and identity information.
+#+end_src
+
+
+* JWT vs Cookies
+Interview favorite.
+
+** Cookie Authentication
+Server stores login session.
+
+#+begin_src text
+Browser
+   ↓
+Cookie ID
+   ↓
+Server Session
+#+end_src
+
+The cookie often contains only:
+
+#+begin_src text
+SessionId = ABC123
+#+end_src
+
+The actual user data is stored on the server.
+
+
+** JWT Authentication
+Server stores nothing.
+
+JWT itself contains identity information.
+
+#+begin_src text
+Browser
+   ↓
+JWT
+   ↓
+Server validates signature
+#+end_src
+
+No session lookup needed.
+
+
+** Comparison
+*** Cookies
+Pros:
+
+#+begin_src text
+Easy logout
+Easy session invalidation
+Traditional web apps
+#+end_src
+
+Cons:
+
+#+begin_src text
+Requires server-side session storage
+#+end_src
+
+
+*** JWT
+Pros:
+
+#+begin_src text
+Stateless
+Great for APIs
+Microservices-friendly
+#+end_src
+
+Cons:
+
+#+begin_src text
+Harder logout
+Harder token revocation
+#+end_src
+
+
+* 401 vs 403
+Extremely common interview question.
+
+
+** 401 Unauthorized
+#+begin_src text
+I don't know who you are.
+No JWT
+Expired JWT
+Invalid JWT
+#+end_src
+
+** 403 Forbidden
+
+#+begin_src text
+  I know who you are.
+  but
+  You lack permission.
+#+end_src
+
+
+
+* How would you secure an ASP.NET Core API?
+A strong interview answer:
+
+*** Authenticate users
+Use:
+
+#+begin_src text
+JWT Bearer Authentication
+#+end_src
+
+Configure:
+
+#+begin_src csharp
+AddAuthentication()
+AddJwtBearer()
+#+end_src
+
+
+*** Validate tokens properly
+Enable:
+
+#+begin_src csharp
+ValidateIssuer
+ValidateAudience
+ValidateLifetime
+ValidateIssuerSigningKey
+#+end_src
+
+This prevents:
+
+#+begin_src text
+Fake tokens
+Expired tokens
+Tokens from other issuers
+#+end_src
+
+
+*** Use HTTPS only
+Never send JWT over HTTP
+Always: HTTPS
+
+
+*** Use authorization
+Protect endpoints:
+
+general
+#+begin_src csharp
+[Authorize]
+#+end_src
+
+or role-based
+
+#+begin_src csharp
+[Authorize(Roles = "Admin")]
+#+end_src
+
+or policy-based/claim-based
+
+#+begin_src csharp
+[Authorize(Policy = "CanApproveInvoices")]
+#+end_src
+
+
+*** Follow least privilege
+Give users only permissions they need.
+
+Example:
+
+#+begin_src text
+Teacher:
+    View Grades
+
+Admin:
+    Manage Users
+
+Finance:
+    Approve Payments
+#+end_src
+
+
+*** Store secrets securely
+Never hardcode:
+
+#+begin_src csharp
+SecretKey = "my-secret"
+#+end_src
+
+Use:
+
+- Environment variables
+- Secret Manager
+- Cloud secret stores
+
+  
+*** Log and monitor
+Log:
+
+#+begin_src text
+Failed logins
+Access denied
+Suspicious activity
+#+end_src
+
+
+If you remember only one thing:
+
+#+begin_src text
+JWT authenticates the user.
+
+Claims describe the user.
+Roles are predefined groups of users.
+Policies are business rules built from claims.
+
+OAuth grants access to resources.
+OpenID Connect identifies the user.
+#+end_src
+
+
+
+* Reading Claims
+You often see:
+
+#+begin_src csharp
+var username = User.Identity?.Name;
+#+end_src
+
+or
+
+#+begin_src csharp
+var email = User.FindFirst(ClaimTypes.Email)?.Value;
+#+end_src
+
+Many beginners memorize these lines without knowing what =User= actually is.
+
+
+** What is =User=?
+After authentication succeeds, ASP.NET Core creates a:
+
+#+begin_src text
+ClaimsPrincipal
+#+end_src
+
+and assigns it to:
+
+#+begin_src csharp
+HttpContext.User
+#+end_src
+
+which is exposed in controllers as:
+
+#+begin_src csharp
+User
+#+end_src
+
+Think of it as:
+
+#+begin_src text
+Current Logged-in User
+#+end_src
+
+with a bag of claims attached.
+
+Example:
+
+#+begin_src text
+User
+├── Name = Hassan
+├── Email = hassan@example.com
+├── Role = Admin
+└── Department = IT
+#+end_src
+
+
+** Why read claims?
+Suppose you have:
+
+inside the JWT.
+#+begin_src json
+{
+  "sub": "123",
+  "name": "Hassan",
+  "email": "hassan@example.com"
+}
+#+end_src
+
+
+You may want to:
+
+- know who is making the request
+- save who created a record
+- show the user's name
+- filter data by user
+
+Example:
+This lets users see only their own orders.
+
+#+begin_src csharp
+var userId =
+    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+#+end_src
+
+Then:
+
+#+begin_src csharp
+var orders =
+    db.Orders
+      .Where(o => o.UserId == userId);
+#+end_src
+
+
+
+** Why not trust the client?
+Bad:
+
+#+begin_src csharp
+POST /orders
+{
+    "userId": "123"
+}
+#+end_src
+
+The user can change:
+
+#+begin_src json
+{
+    "userId": "999"
+}
+#+end_src
+
+and access another user's data.
+
+Instead:
+
+#+begin_src csharp
+var userId =
+    User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+#+end_src
+
+Now the identity comes from the validated JWT, not from user input.
+
+That's one of the biggest real-world uses of claims.
+
+
+* Policy Example
+first.
+People often learn:
+
+#+begin_src csharp
+[Authorize(Roles="Admin")]
+#+end_src
+
+
+But large systems quickly outgrow roles.
+
+=we use policies to avoid role explosion=
+
+** Problem with roles
+Imagine:
+
+#+begin_src text
+Admin
+Manager
+Teacher
+Student
+#+end_src
+
+Easy.
+
+Now management says:
+
+#+begin_src text
+Can approve invoices
+Can export reports
+Can view payroll
+Can manage projects
+#+end_src
+
+If you use only roles:
+
+#+begin_src text
+Admin
+FinanceAdmin
+FinanceManager
+PayrollManager
+ProjectManager
+SeniorProjectManager
+...
+#+end_src
+
+You get role explosion.
+
+
+Policies solve this
+
+Create claims:
+#+begin_src text
+CanApprove = true
+CanExport = true
+CanViewPayroll = true
+#+end_src
+
+
+Then create a policy:
+#+begin_src csharp
+options.AddPolicy(
+    "CanApproveInvoices",
+    policy =>
+        policy.RequireClaim(
+            "CanApprove",
+            "true"));
+#+end_src
+
+Usage:
+
+#+begin_src csharp
+[Authorize(Policy="CanApproveInvoices")]
+#+end_src
+
+
+** What actually happens?
+Request arrives:
+
+#+begin_src text
+POST /invoices/approve
+#+end_src
+
+ASP.NET:
+
+#+begin_src text
+Authenticate user
+↓
+Read claims
+↓
+Check policy
+↓
+Allow or deny
+#+end_src
+
+If claim exists:
+
+#+begin_src text
+CanApprove=true
+#+end_src
+
+Access granted.
+
+Otherwise:
+
+#+begin_src text
+403 Forbidden
+#+end_src
+
+
+** enterprises prefer policies
+Business requirements usually sound like:
+
+#+begin_src text
+Can approve purchases
+Can issue refunds
+Can view payroll
+Can manage customers
+#+end_src
+
+not:
+
+#+begin_src text
+Must be role X
+#+end_src
+
+
+
+* Store Secrets Securely
+This is one of the most important security topics.
+
+
+** The beginner mistake
+#+begin_src csharp
+builder.Services
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(
+                            "super-secret-key"))
+            };
+    });
+#+end_src
+
+Or:
+
+#+begin_src csharp
+string password =
+    "MyDatabasePassword123";
+#+end_src
+
+inside source code.
+
+Very bad.
+
+
+** Why is it bad?
+Source code often ends up in:
+
+- Git repositories
+- backups
+- CI/CD logs
+- developer machines
+
+If someone gets the secret:
+
+#+begin_src text
+They can impersonate users
+Sign fake JWTs
+Access databases
+Call paid APIs
+#+end_src
+
+
+** Better approach
+Use configuration.
+
+Example:
+
+#+begin_src json
+{
+  "Jwt": {
+    "Key": "..."
+  }
+}
+#+end_src
+
+Read it:
+
+#+begin_src csharp
+builder.Configuration["Jwt:Key"];
+#+end_src
+
+
+** Better still: environment variables
+Linux:
+
+#+begin_src sh
+export JWT_KEY="super-secret-value"
+#+end_src
+
+ASP.NET:
+
+#+begin_src csharp
+builder.Configuration["JWT_KEY"]
+#+end_src
+
+Now the secret is not stored in Git.
+
+
+** Best for production
+Use secret-management services:
+
+- Microsoft Azure Key Vault
+- Amazon Web Services Secrets Manager
+- Google Cloud Secret Manager
+
+Applications retrieve secrets securely at runtime.
+
+
+** How do you store JWT signing keys or database passwords?
+
+A strong answer is:
+
+#+begin_src text
+Never hardcode secrets in source code.
+
+For development, use ASP.NET Core Secret Manager or environment variables.
+
+For production, use a dedicated secret store such as Azure Key Vault, AWS Secrets Manager, or Google Secret Manager.
+#+end_src

@@ -1,0 +1,161 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:FileOrganizer.Gui.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+        x:Class="FileOrganizer.Gui.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="File Organizer"
+        MinWidth="600" MinHeight="400">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="10" ColumnDefinitions="*">
+
+        <!-- Source Directory -->
+        <Grid Grid.Row="0" ColumnDefinitions="80,*,Auto" Margin="0,0,0,5">
+            <TextBlock Text="Source Dir:" VerticalAlignment="Center"/>
+            <TextBox x:Name="SourceDirTextBox"
+                     Grid.Column="1"
+                     Text="{Binding SourceDirectory}"
+                     PlaceholderText="Path to directory..."/>
+            <Button Grid.Column="2" Margin="5,0,0,0"
+                    x:Name="BrowseButton"
+                    Content="Browse..."/>
+        </Grid>
+
+        <!-- Container -->
+        <Grid Grid.Row="1" ColumnDefinitions="80,*,Auto" Margin="0,0,0,5">
+            <TextBlock Text="Container:" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1"
+                     Text="{Binding ContainerName}"
+                     PlaceholderText="Folder name..."/>
+            <Button Grid.Column="2" Margin="5,0,0,0"
+                    Command="{Binding ContainerizeCommand}"
+                    Content="Add to Container"
+                    Padding="10,5"/>
+        </Grid>
+
+        <!-- Named Patterns -->
+        <Grid Grid.Row="2" ColumnDefinitions="80,*,Auto,Auto" Margin="0,0,0,5">
+            <TextBlock Text="Patterns:" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1"
+                     Text="{Binding CurrentPattern}"
+                     PlaceholderText="Enter keyword...">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding AddPatternCommand}"/>
+                </TextBox.KeyBindings>
+            </TextBox>
+            <CheckBox Grid.Column="2"
+                      IsChecked="{Binding UseRegex}"
+                      Content="Regex"
+                      VerticalAlignment="Center"
+                      Margin="4,0"/>
+            <Button Grid.Column="3" Margin="5,0,0,0"
+                    Command="{Binding CreatePatternsCommand}"
+                    Content="Create Patterns"
+                    Padding="10,5"/>
+        </Grid>
+
+        <!-- Pattern Tags -->
+        <ItemsControl Grid.Row="3" ItemsSource="{Binding NamedPatterns}" Margin="10,0,0,5">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="#4480C0" CornerRadius="4" Padding="6,2" Margin="2">
+                        <Grid ColumnDefinitions="Auto,Auto">
+                            <TextBlock Text="{Binding}" Foreground="White" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Margin="4,0,0,0"
+                                    Content="✕"
+                                    FontSize="10"
+                                    Width="16" Height="16"
+                                    Padding="0"
+                                    Command="{Binding $parent[ItemsControl].DataContext.RemovePatternCommand}"
+                                    CommandParameter="{Binding}"/>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Preview Table -->
+        <Grid Grid.Row="4" Margin="0,0,0,5">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Table Header -->
+                <Border Grid.Row="0" Background="#2D2D2D" Padding="4">
+                    <Grid ColumnDefinitions="30,*,80,120,80">
+                        <CheckBox Grid.Column="0"
+                                  IsChecked="{Binding IsAllSelected}"/>
+                        <TextBlock Grid.Column="1" Text="File Name" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="2" Text="Extension" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="3" Text="→ Target Folder" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="4" Text="Size" FontWeight="Bold" HorizontalAlignment="Right"/>
+                    </Grid>
+                </Border>
+                <!-- Table Rows -->
+                <ListBox Grid.Row="1" ItemsSource="{Binding FileItems}"
+                         Background="Transparent"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FileItemViewModel">
+                            <Border Padding="4" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1"
+                                    Background="{Binding IsCurrentlyMatched, Converter={StaticResource RowHighlightConverter}}">
+                                <Grid ColumnDefinitions="30,*,80,120,80">
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsSelected}"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding FileName}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Extension}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding TargetFolder}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding SizeFormatted}"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+
+        <!-- Bottom Controls -->
+        <Grid Grid.Row="5" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="0,5,0,0">
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsDryRun}"
+                      Content="Dry Run"
+                      VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Margin="10,0,0,0"
+                    Command="{Binding OrganizeCommand}"
+                    Content="Organize!"
+                    Padding="15,5"/>
+            <Button Grid.Column="2" Margin="10,0,0,0"
+                    Command="{Binding ReverseCommand}"
+                    Content="Reverse!"
+                    Padding="15,5"/>
+            <Button Grid.Column="3" Margin="10,0,0,0"
+                    Command="{Binding ResetCommand}"
+                    Content="Reset"
+                    Padding="15,5"/>
+            <ProgressBar Grid.Column="4"
+                         Value="{Binding ProgressValue}"
+                         Minimum="0" Maximum="100"
+                         Margin="10,0"
+                         VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="5"
+                       Text="{Binding StatusText}"
+                       VerticalAlignment="Center"
+                       Margin="5,0,0,0"/>
+        </Grid>
+    </Grid>
+
+</Window>

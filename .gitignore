@@ -10,3 +10,5 @@ obj/
 .DS_Store
 Thumbs.db
 *.pdf
+# debugging + logging
+**/*.log
