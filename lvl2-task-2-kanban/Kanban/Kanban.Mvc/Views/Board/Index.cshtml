@@ -1,0 +1,32 @@
+@model List<Kanban.Core.Models.Column>
+
+@{
+    ViewData["Title"] = "Kanban Board";
+}
+
+<div class="board">
+    @foreach (var col in Model)
+    {
+        <div class="column @GetColumnClass(col.Order)" data-column-id="@col.Id">
+            <div class="column-header">
+                <h3>@col.Title</h3>
+                <a asp-controller="Card" asp-action="Create" asp-route-columnId="@col.Id" class="btn btn-primary">+ Add</a>
+            </div>
+            <div class="column-card-list">
+                @foreach (var card in col.Cards)
+                {
+                    <partial name="_Card" model="card" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@functions {
+    string GetColumnClass(int order) => order switch
+    {
+        0 => "column-todo",
+        1 => "column-progress",
+        _ => "column-done"
+    };
+}

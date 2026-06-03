@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CounterPick.Api/CounterPick.Api.csproj" />
+  <Project Path="CounterPick.Auth/CounterPick.Auth.csproj" />
+  <Project Path="CounterPick.Core/CounterPick.Core.csproj" />
+</Solution>

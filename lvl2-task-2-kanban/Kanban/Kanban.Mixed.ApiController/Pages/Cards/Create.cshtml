@@ -1,0 +1,19 @@
+@page
+@model Kanban.Mixed.ApiController.Pages.Cards.CreateModel
+
+<h2>Create Card</h2>
+<form method="post">
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <input type="hidden" asp-for="Card.ColumnId" />
+    <div>
+        <label asp-for="Card.Title"></label>
+        <input asp-for="Card.Title" class="form-control" />
+        <span asp-validation-for="Card.Title" class="text-danger"></span>
+    </div>
+    <div>
+        <label asp-for="Card.Description"></label>
+        <textarea asp-for="Card.Description" class="form-control"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-page="/Board/Index" class="btn">Cancel</a>
+</form>

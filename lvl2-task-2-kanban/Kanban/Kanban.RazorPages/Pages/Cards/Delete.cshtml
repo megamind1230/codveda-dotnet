@@ -1,0 +1,10 @@
+@page
+@model Kanban.RazorPages.Pages.Cards.DeleteModel
+
+<h2>Delete Card</h2>
+<p>Are you sure you want to delete <strong>@Model.Card.Title</strong>?</p>
+<form method="post">
+    <input type="hidden" asp-for="Card.Id" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a asp-page="/Board/Index" class="btn">Cancel</a>
+</form>

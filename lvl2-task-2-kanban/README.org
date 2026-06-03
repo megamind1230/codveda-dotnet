@@ -1,0 +1,97 @@
+* Kanban App
+
+A multi-project ASP.NET Core 8.0 kanban board demonstrating four hosting
+paradigms sharing a single data/service layer (~Kanban.Core~).
+
+** Features
+
+- Create / edit / delete cards on a kanban board with three columns (To Do,
+  In Progress, Done)
+- Drag-and-drop cards between columns (all projects, via SortableJS)
+- Request-timing middleware logs each request's duration
+- Seeded with sample data on first run
+- SQLite database (one per project)
+
+** Solution Structure
+
+| Project                          | Description                                    |
+|----------------------------------+------------------------------------------------|
+| Kanban.Core                      | Shared class library with models, DbContext,   |
+|                                  | services, middleware, seed data, DTOs          |
+| Kanban.Mvc                       | Pure MVC (Controllers + Views)                 |
+| Kanban.RazorPages                | Pure Razor Pages (PageModel + .cshtml)         |
+| Kanban.Mixed.Minimal             | Razor Pages UI + Minimal API endpoints         |
+| Kanban.Mixed.ApiController       | Razor Pages UI + MVC API Controllers           |
+
+** Tech Stack
+
+- .NET 8.0
+- ASP.NET Core (MVC, Razor Pages, Minimal API, API Controllers)
+- Entity Framework Core 8.0.11 (SQLite)
+- Bootstrap 5 (scaffolded)
+- SortableJS 1.15.0 (CDN, all projects)
+
+** Project Ports
+
+| Project                | Port |
+|------------------------+------|
+| Kanban.Mvc             | 5001 |
+| Kanban.RazorPages      | 5002 |
+| Kanban.Mixed.Minimal   | 5003 |
+| Kanban.Mixed.ApiController | 5004 |
+
+** How to Use
+
+1. Build the solution:
+   #+begin_src sh
+   dotnet build
+   #+end_src
+
+2. Run a project (e.g. MVC):
+   #+begin_src sh
+   dotnet run --project Kanban/Kanban.Mvc
+   #+end_src
+
+3. Open http://localhost:5001 (or the port for the chosen project).
+
+4. The board auto-seeds with sample columns (To Do, In Progress, Done)
+   and a few sample cards on first run.
+
+5. Drag cards between columns to reorder. Edit/delete via card buttons.
+
+** Kanban.Core layer
+
+All business logic lives in Kanban.Core:
+
+- ~Models/~ — Card.cs, Column.cs (EF Core entities), MoveCardRequest.cs (DTO)
+- ~Data/~ — KanbanDbContext.cs, DbInitializer.cs
+- ~Services/~ — IColumnService/ColumnService, ICardService/CardService
+- ~Middleware/~ — RequestTimingMiddleware, MiddlewareExtensions
+
+Each web project references Kanban.Core and registers its DbContext +
+services in Program.cs.
+
+** Completion Status
+
+All 4 web projects are fully implemented and runnable.
+
+*** What's implemented
+
+- Solution scaffolding (all 5 projects)
+- Kanban.Core: Models, DbContext, Services, Middleware, DbInitializer, DTOs
+- Kanban.Mvc: Controllers + Views + drag-drop
+- Kanban.RazorPages: PageModels + Pages + drag-drop
+- Kanban.Mixed.Minimal: Board/Card pages + Minimal API + drag-drop
+- Kanban.Mixed.ApiController: Board/Card pages + API Controller + drag-drop
+- Request-timing middleware in all projects
+- Seed data on first run
+- Ports 5001-5004
+- Bootstrap + jQuery in all projects
+- Smooth drag-drop with SortableJS (forceFallback, easing, ghost styling)
+- Navbar: Board link in all projects (Privacy removed)
+- Column validation fix ([ValidateNever])
+- Non-unique index on (ColumnId, Order) for conflict-free reordering
+
+*** Minor items (see bugs.org)
+
+- HTTPS redirect warning in all projects (cosmetic — no HTTPS port configured)

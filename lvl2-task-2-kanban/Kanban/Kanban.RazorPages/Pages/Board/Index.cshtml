@@ -1,0 +1,39 @@
+@page
+@model Kanban.RazorPages.Pages.Board.IndexModel
+
+<div class="board">
+    @foreach (var col in Model.Columns)
+    {
+        <div class="column @GetColumnClass(col.Order)" data-column-id="@col.Id">
+            <div class="column-header">
+                <h3>@col.Title</h3>
+                <a asp-page="/Cards/Create" asp-route-columnId="@col.Id" class="btn btn-primary">+ Add</a>
+            </div>
+            <div class="column-card-list">
+                @foreach (var card in col.Cards)
+                {
+                    <div class="card" data-card-id="@card.Id">
+                        <div class="card-title">@card.Title</div>
+                        @if (!string.IsNullOrEmpty(card.Description))
+                        {
+                            <div class="card-desc">@card.Description</div>
+                        }
+                        <div class="card-actions">
+                            <a asp-page="/Cards/Edit" asp-route-id="@card.Id" class="btn btn-sm">Edit</a>
+                            <a asp-page="/Cards/Delete" asp-route-id="@card.Id" class="btn btn-sm btn-danger">Delete</a>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@functions {
+    string GetColumnClass(int order) => order switch
+    {
+        0 => "column-todo",
+        1 => "column-progress",
+        _ => "column-done"
+    };
+}

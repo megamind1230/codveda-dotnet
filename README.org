@@ -1,0 +1,15 @@
+* Some fresh dotnet projects
+
+- .NET or dotnet 
+- asp.net 
+  - MVC
+	- RazorPages
+	- Minimal APIs
+	- ApiController
+  - JWT
+- avalonia 
+- and more
+ 
+
+for a #codveda .NET intership 
+

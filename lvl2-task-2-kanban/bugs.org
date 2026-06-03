@@ -1,0 +1,56 @@
+* Bugs / Issues in Kanban App
+
+** Open
+
+*** BUG 28 — HTTPS redirect warning (all 4 projects)
+
+- Log: "Failed to determine the https port for redirect."
+- Cause: app.UseHttpsRedirection() is called in every Program.cs but no HTTPS
+  port is configured in launchSettings.json.
+- Affects: Kanban.Mvc, Kanban.RazorPages, Kanban.Mixed.Minimal,
+  Kanban.Mixed.ApiController — all 4 projects.
+- Fix: Disable UseHttpsRedirection() or configure an HTTPS URL in
+  launchSettings.json. Cosmetic only — app works over HTTP on localhost.
+
+** ===== FIXED =====
+
+- BUG 26 — Mixed projects namespace → FIXED (changed to own project namespace)
+- Mixed missing wwwroot/lib/ (Bootstrap, jQuery) → FIXED (copied from Kanban.RazorPages)
+- Mixed missing Pages/Index.cshtml, Privacy.cshtml, Error.cshtml → FIXED (copied from Kanban.RazorPages)
+- Mixed missing page models (.cshtml.cs) → FIXED (copied from Kanban.RazorPages)
+- Mixed missing wwwroot/css/site.css, wwwroot/js/site.js → FIXED (copied from Kanban.Mvc)
+- Mixed missing wwwroot/favicon.ico → FIXED (copied from Kanban.Mvc)
+- Mixed root 404 (/ not found) → FIXED (Index page redirects to /Board)
+- Mixed navbar unstyled → FIXED (Bootstrap lib now available)
+- Column field required on create/edit → FIXED ([ValidateNever] on Card.Column)
+- Unique index causing drag-drop failures → FIXED (removed IsUnique())
+- Kanban.Mvc Home page instead of board → FIXED (default route changed to Board)
+- Kanban.RazorPages Home page instead of board → FIXED (Index redirects to /Board/Index)
+- No drag-drop in MVC/RazorPages → FIXED (SortableJS + board.js + PATCH endpoint added to all)
+- Duplicated MoveDto records → FIXED (extracted to shared MoveCardRequest in Kanban.Core)
+- Drag ghost misaligned with mouse → FIXED (forceFallback + sortable-fallback CSS)
+- Text selection during drag → FIXED (user-select: none + onStart body override)
+- Rough drag animation → FIXED (CSS transitions + SortableJS easing)
+- Missing KanbanDbContext → FIXED
+- Missing IColumnService/ColumnService → FIXED
+- Missing ICardService/CardService → FIXED
+- Missing RequestTimingMiddleware → FIXED
+- Missing DbInitializer → FIXED
+- Missing BoardController/CardController in MVC → FIXED
+- Missing Board/Card views in MVC → FIXED
+- Missing ConnectionStrings → FIXED
+- Missing DI registrations in Program.cs → FIXED (all projects)
+- Missing Pages/Board/ + Cards/ in RazorPages → FIXED
+- Missing board.js in Mixed projects → FIXED
+- Missing kanban.css → FIXED (all projects)
+- Missing kanban.css link in _Layout → FIXED (all projects)
+- Ports not configured → FIXED (5001-5004)
+- Missing data-column-id → FIXED (all projects)
+- SortableJS CDN not linked → FIXED (all projects)
+- No EnsureCreated/Seed → FIXED (all projects)
+- Navbar Home link → FIXED (Board link, Privacy removed in all projects)
+- Missing Sqlite package → FIXED
+- Class1.cs leftover → FIXED
+- WeatherForecast boilerplate → FIXED
+- net10.0 target → FIXED (net8.0)
+- MapStaticAssets() in net8.0 → FIXED

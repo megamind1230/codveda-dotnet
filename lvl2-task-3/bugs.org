@@ -1,0 +1,196 @@
+* Bugs
+
+** Resolved
+
+- [X] Rate limiter window was 10 min for both anon (3) and auth (100)
+  - Symptom: plan said "100/min" for auth users but both used 10-min window.
+  - Fix: authenticated users now get a 1-min window with 100 permits. (Program.cs:73-74)
+
+- [X] Seeded CounterSuggestions had empty SuggestedById
+  - Symptom: DbInitializer seeded suggestions before creating admin user, so
+    SuggestedById was empty string. New suggestions from real users were fine.
+  - Fix: create admin user first, then seed hero data using admin's ID. (DbInitializer.cs:18-21)
+
+- [X] GET /api/counters/{id}/comments returned raw UserId GUID instead of UserName
+  - Symptom: frontend showed GUIDs like "3a4f8c2e-..." instead of usernames.
+  - Fix: resolve UserId → UserName via UserManager lookup in controller.
+    (Note: currently loads ALL users into memory — works but doesn't scale.)
+    (CommentsController.cs:22-25)
+
+- [X] RefreshRequest DTO defined inline in AuthController.cs
+  - Symptom: DTO was in the controller file instead of Core/DTOs/.
+  - Fix: moved to CounterPick.Core/DTOs/RefreshRequestDto.cs for consistency.
+    (AuthController.cs was cleaned up)
+
+- [X] No self-counter guard — POST /api/heroes/{id}/counters allowed heroId == counterHeroId
+  - Symptom: you could suggest a hero counters itself (nonsensical).
+  - Fix: returns 400 with message "A hero cannot counter itself".
+    (CounterSuggestionsController.cs:56-58)
+
+- [X] Admin could delete own account — no guard on DELETE /api/admin/users/{id}
+  - Symptom: admin could delete their own account, locking themselves out.
+  - Fix: returns 400 if currentUser == targetUser. (AdminController.cs:42-43)
+
+- [X] No PUT/DELETE endpoints for comments — CommentController didn't exist
+  - Symptom: comments were create-only; no way to edit or delete.
+  - Fix: added CommentController with resource-based authorization via
+    CommentOwnerHandler + CommentOwnerRequirement. Owner can edit/delete
+    own comment; non-owner gets 403. (Phase 4, CommentController.cs, CommentOwnerHandler.cs)
+
+- [X] Universal hero filter broken — "Universal" button had data-attr="all"
+  - Symptom: Universal and All buttons both had data-attr="all", so clicking
+    "Universal" showed every hero instead of only universal ones.
+    Universal heroes have primaryAttr == "all" (OpenDota API convention).
+  - Fix: changed Universal button to data-attr="uni", adjusted filterHeroes()
+    to handle "uni" → h.primaryAttr === "all". (index.html:40)
+
+- [X] No edit/delete comment UI
+  - Symptom: CommentController supported PUT/DELETE on backend but frontend
+    (discussion.html) had no buttons to trigger them.
+  - Fix: added Edit/Delete buttons visible only for own comments (userId match),
+    with editComment/saveEdit/cancelEdit/deleteComment functions. (discussion.html:107-134)
+
+- [X] No token refresh — apiFetch redirected to /login.html on 401 immediately
+  - Symptom: access tokens expire in 15 min; after expiry, user was thrown to
+    login page instead of getting a seamless refresh.
+  - Fix: added tryRefresh() that POSTs /auth/refresh with stored refresh token;
+    apiFetch() now calls tryRefresh() on 401, retries on success, redirects only
+    on failure. (auth.js:41-76)
+
+- [X] No 429 detection — rate-limit errors showed generic "Failed to load"
+  - Symptom: when rate-limited (HTTP 429), the frontend treated it as a
+    connection error and displayed "Failed to load heroes."
+  - Fix: apiFetch() checks resp.status === 429, shows toast "Rate limited — slow down!"
+    and returns a structured { rateLimited: true } response. (auth.js:60-63)
+
+- [X] HTTPS redirection not configured
+  - Symptom: no app.UseHttpsRedirection() in pipeline, HTTP requests never
+    redirected to HTTPS.
+  - Fix: added app.UseHttpsRedirection() in middleware pipeline. (Program.cs:122)
+
+- [X] Log failed login attempts
+  - Symptom: no logging of failed auth attempts (hard to debug or detect attacks).
+  - Fix: ILogger<AuthController> injected; logs unknown user attempts (line 45)
+    and wrong password attempts (line 50). (AuthController.cs:45,50)
+
+- [X] Rate-limit on /auth/login
+  - Symptom: only hero search endpoints were rate-limited; login endpoint had
+    no protection against brute force.
+  - Fix: added LoginLimit policy (5/min/IP) in Program.cs, applied
+    [EnableRateLimiting("LoginLimit")] to POST /auth/login. (Program.cs:78-86)
+
+- [X] Rate-limit on /auth/register
+  - Symptom: registration endpoint had no rate limiting — attacker could create
+    unlimited accounts.
+  - Fix: added [EnableRateLimiting("LoginLimit")] to POST /auth/register.
+    (AuthController.cs:58)
+
+- [X] launchUrl = "weatherforecast" in launchSettings.json
+  - Symptom: all 3 launch profiles had launchUrl pointing to "weatherforecast"
+    (default template artifact). Browser opened to 404 on launch.
+  - Fix: changed to empty string in all 3 profiles. (Properties/launchSettings.json:16,26,35)
+
+- [X] CounterPick.Api.http stale endpoint
+  - Symptom: the .http file referenced /weatherforecast/ which doesn't exist.
+  - Fix: replaced with GET /api/heroes. (CounterPick.Api.http:3)
+
+- [X] No transaction in DbInitializer.SeedHeroes
+  - Symptom: SeedHeroes had two SaveChangesAsync calls (line 54 for heroes,
+    line 76 for suggestions). If second call failed (DB error, connection drop),
+    heroes existed without any suggestions — inconsistent state.
+  - Fix: wrapped suggestion seeding in using var tx = await db.Database.BeginTransactionAsync()
+    with await tx.CommitAsync(). (DbInitializer.cs:55,77-78)
+
+- [X] Refresh token theft detection
+  - Symptom: when a stolen/revoked refresh token was presented at /auth/refresh,
+    only that token was revoked. The attacker got a 401, but the legitimate user's
+    current token remained valid. No theft alert.
+  - Fix: when a revoked token is detected, revoke ALL non-revoked tokens for that
+    user and log "Token theft detected for user {UserId}". (AuthController.cs:84-92)
+
+- [X] Admin "admin" seed user not protected server-side
+  - Symptom: server-side only prevented self-delete (currentUserId == targetId).
+    The client-side button disable for username "admin" was trivially bypassed
+    (curl, Postman, browser dev tools). A different admin could delete the seed
+    admin account.
+  - Fix: added server-side check — returns 400 if target user's UserName is "admin".
+    (AdminController.cs:46-48)
+
+- [X] Successful registration not logged
+  - Symptom: only registration errors were logged; successful registrations were
+    silent in the logs.
+  - Fix: added _logger.LogInformation("User '{Username}' registered successfully", ...)
+    before returning the token response. (AuthController.cs:69)
+
+- [X] HttpsPort not set in appsettings.Development.json
+  - Symptom: appsettings.json has HttpsPort: 7243 (matching https:localhost:7243),
+    but appsettings.Development.json didn't override it. In dev, UseHttpsRedirection
+    could redirect to the wrong port.
+  - Fix: added "HttpsPort": 7243 to appsettings.Development.json.
+
+** Open
+
+- [ ] OAuth callback redirects with tokens in URL fragment
+  - File: AuthController.cs (GenerateTokenFragment method, line 206)
+  - Root cause: external-callback redirects to /login.html#access_token=...&refresh_token=...
+  - Risk: tokens visible in browser address bar (history, shoulder surfing, screen share).
+    The fragment (#) is not sent in HTTP requests, which is slightly better than query
+    params (?), but still exposed in the browser UI.
+  - Fix (production): use a popup window where the server POSTs tokens back to the
+    opener window via JavaScript (postMessage), or use a session-based handshake with
+    an authorization code flow.
+  - Note: accepted as a learning-project limitation.
+
+- [ ] Rate limiter SegmentsPerWindow=1 → effectively fixed window
+  - File: Program.cs:75,85
+  - Root cause: SlidingWindowRateLimiterOptions.SegmentsPerWindow = 1 means the
+    window is not subdivided. Permits reset entirely at each window boundary instead
+    of sliding continuously.
+  - Effect: a user can exhaust all permits in a burst at the start of a window and
+    be blocked for the remainder. No gradual replenishment.
+  - Fix: increase SegmentsPerWindow (e.g., 10 for 1-min windows → 6s segments) for
+    smoother rate limiting. Note: this may slightly increase Redis/memory overhead
+    in distributed scenarios but is negligible for in-memory.
+
+** Architectural / Code Quality Notes (not bugs, but worth tracking)
+
+- CommentsController.GetComments loads ALL IdentityUser records into memory
+  (CommentsController.cs:22-25: _userManager.Users.ToListAsync()) to map UserId
+  to UserName. This doesn't scale beyond a few hundred users. Fix: use a SQL
+  left join via LINQ Select into an anonymous type or raw SQL.
+
+- DTOs defined inline in controllers instead of Core/DTOs/:
+  - AddCommentDto in CommentsController.cs
+  - AddCounterDto in CounterSuggestionsController.cs
+  - UpdateCommentDto in CommentController.cs
+  Consistency fix: move all DTOs to CounterPick.Core/DTOs/.
+
+- No duplicate-counter-suggestion guard:
+  Same user could POST the same hero pair multiple times, creating duplicate
+  suggestions. Fix: unique index on (HeroId, CounterHeroId) or application-level
+  duplicate check before insert.
+
+- No admin override for comment ownership:
+  CommentOwnerHandler only checks userId == comment.UserId. Even an admin cannot
+  delete inappropriate comments. Fix: add a second requirement or check for
+  "Admin" role in the handler.
+
+- CounterSuggestion has no CreatedAt:
+  Unlike Comment (which has CreatedAt), CounterSuggestion has no timestamp.
+  Fix: add CreatedAt = DateTime.UtcNow to the model.
+
+- No input validation on comment/suggestion content:
+  AddCommentDto.Content, AddCounterDto.Reason, UpdateCommentDto.Content have no
+  [Required], [MaxLength], or [MinLength] data annotations. Fix: add validation
+  attributes matching the RegisterDto pattern.
+
+- CORS is permissive:
+  AllowAnyOrigin + AllowAnyMethod + AllowAnyHeader (Program.cs:98-99).
+  Safe for development/demo but should be locked down for production.
+
+- JWT in localStorage is XSS-vulnerable:
+  Standard SPA pattern but more secure alternatives exist:
+  - HTTP-only cookies with anti-forgery tokens
+  - BFF (Backend for Frontend) pattern
+  The current approach is fine for a learning project but would fail security
+  audits in production.

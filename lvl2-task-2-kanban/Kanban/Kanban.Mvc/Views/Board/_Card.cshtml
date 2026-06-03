@@ -1,0 +1,13 @@
+@model Kanban.Core.Models.Card
+
+<div class="card" data-card-id="@Model.Id">
+    <div class="card-title">@Model.Title</div>
+    @if (!string.IsNullOrEmpty(Model.Description))
+    {
+        <div class="card-desc">@Model.Description</div>
+    }
+    <div class="card-actions">
+        <a asp-controller="Card" asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-sm">Edit</a>
+        <a asp-controller="Card" asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-sm btn-danger">Delete</a>
+    </div>
+</div>

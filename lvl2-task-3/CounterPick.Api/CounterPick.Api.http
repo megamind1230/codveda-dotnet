@@ -1,0 +1,6 @@
+@CounterPick.Api_HostAddress = http://localhost:5195
+
+GET {{CounterPick.Api_HostAddress}}/api/heroes
+Accept: application/json
+
+###

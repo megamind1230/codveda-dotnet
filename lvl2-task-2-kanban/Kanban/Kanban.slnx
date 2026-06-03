@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Kanban.Core/Kanban.Core.csproj" />
+  <Project Path="Kanban.Mixed.ApiController/Kanban.Mixed.ApiController.csproj" />
+  <Project Path="Kanban.Mixed.Minimal/Kanban.Mixed.Minimal.csproj" />
+  <Project Path="Kanban.Mvc/Kanban.Mvc.csproj" />
+  <Project Path="Kanban.RazorPages/Kanban.RazorPages.csproj" />
+</Solution>

@@ -1,0 +1,347 @@
+* Dota 2 Counter-Pick — Authentication & Authorization Demo
+
+A full-stack web app where users browse Dota 2 heroes, suggest counter-picks, discuss matchups, and vote on comments. Built to demonstrate JWT auth, role/claims-based authorization, OAuth 2.0, rate limiting, and ASP.NET Core Identity.
+
+** Features
+- Hero grid with search + attribute filter (Str/Agi/Int/Universal) — 127 heroes seeded from OpenDota API
+- JWT auth with access (15 min) + refresh (7 days) tokens; auto-refresh on 401
+- Role-based: Admin role manages users
+- Claims-based policies: CanComment, CanDeleteAnyComment, VerifiedAccount (from OAuth)
+- Counter suggestions — logged-in users propose counters for hero matchups
+- Comment + like system on each counter pair; most-liked rises to top
+- Comment ownership — Edit/Delete buttons only for the author (frontend + resource-based authorization)
+- Admin panel — user table with delete (protected: cannot delete self or seed "admin" user)
+- OAuth 2.0 login via Google / Microsoft (conditional — skipped if secrets not set)
+- Rate limiting: 3/10min anonymous, 100/min authenticated on hero endpoints; 5/min/IP on login
+- 429 detection with toast notification
+- Failed login and token-theft logging via ILogger
+
+** Tech Stack
+
+| Layer        | Technology                                                   |
+|--------------+--------------------------------------------------------------|
+| Runtime      | .NET 8 (C# 12)                                               |
+| Web framework| ASP.NET Core 8 (minimal hosting + ApiController pattern)     |
+| ORM          | Entity Framework Core 8 + SQLite provider                    |
+| Database     | SQLite (counterpick.db)                                      |
+| Auth         | ASP.NET Core Identity + JwtBearer + Google/MS OAuth 2.0/OIDC |
+| Auth library | CounterPick.Auth — TokenService (JWT + refresh token gen)    |
+| Authz        | Role-based, Claims-based, Resource-based (CommentOwnerHandler)|
+| Rate limiting| System.Threading.RateLimiting (SlidingWindow, fixed-window behavior)|
+| Frontend     | Vanilla JS + Bootstrap 5.3.3 (CDN) — served via static files|
+| Styling      | Custom dark Dota-theme CSS (style.css)                       |
+| Package mgmt | NuGet + dotnet user-secrets                                  |
+
+| NuGet Package                                 | Version |
+|-----------------------------------------------+---------|
+| Microsoft.AspNetCore.Authentication.Google    | 8.0.0   |
+| Microsoft.AspNetCore.Authentication.JwtBearer | 8.0.0   |
+| Microsoft.AspNetCore.Authentication.MicrosoftAccount | 8.0.0 |
+| Microsoft.AspNetCore.Identity.EntityFrameworkCore | 8.0.0 |
+| Microsoft.EntityFrameworkCore.Sqlite          | 8.0.0   |
+| System.Threading.RateLimiting                 | 8.0.0   |
+| System.IdentityModel.Tokens.Jwt               | 8.0.0   |
+
+** Project Structure
+
+#+begin_src text
+CounterPick.slnx
+├── CounterPick.Api/              # Web API + static frontend
+│   ├── Controllers/
+│   │   ├── AuthController.cs                 # login/register/refresh/revoke/OAuth
+│   │   ├── HeroesController.cs               # GET heroes (rate-limited)
+│   │   ├── CounterSuggestionsController.cs    # GET/POST counters per hero
+│   │   ├── CommentsController.cs              # GET/POST comments per suggestion
+│   │   ├── LikesController.cs                 # POST toggle like on comment
+│   │   ├── CommentController.cs              # PUT/DELETE own comment (owner check)
+│   │   └── AdminController.cs                # GET/DELETE users (Admin role)
+│   ├── Authorization/
+│   │   ├── CommentOwnerRequirement.cs         # Marker IAuthorizationRequirement
+│   │   └── CommentOwnerHandler.cs            # Checks userId == comment.UserId
+│   ├── wwwroot/
+│   │   ├── index.html                        # Hero grid with search + filters
+│   │   ├── hero.html                         # Hero detail + counters + add form
+│   │   ├── discussion.html                   # Comments + likes + edit/delete
+│   │   ├── login.html                        # Login/register + OAuth buttons
+│   │   ├── admin.html                        # User table with delete
+│   │   ├── css/style.css                     # Dark Dota theme overrides
+│   │   └── js/auth.js                        # Token storage, apiFetch, refresh
+│   ├── Properties/
+│   │   └── launchSettings.json               # Dev profiles (http/5195, https/7243)
+│   ├── appsettings.json                      # Connection string, JWT config, HttpsPort
+│   ├── appsettings.Development.json          # Dev overrides
+│   ├── Program.cs                            # DI, pipeline, seeding, extensions
+│   └── CounterPick.Api.csproj
+│
+├── CounterPick.Core/              # Domain + data layer
+│   ├── Models/
+│   │   ├── Hero.cs                            # id, name, localizedName, primaryAttr, attackType, roles, imageUrl
+│   │   ├── CounterSuggestion.cs               # heroId, counterHeroId, reason, suggestedById
+│   │   ├── Comment.cs                         # suggestionId, userId, content, likeCount, createdAt
+│   │   ├── SuggestionLike.cs                  # commentId, userId (unique combo)
+│   │   └── RefreshToken.cs                    # token, userId, expiresAt, isRevoked
+│   ├── DTOs/
+│   │   ├── LoginDto.cs                        # Username [Required], Password [Required]
+│   │   ├── RegisterDto.cs                     # Username [3-50], Email, Password [6-100]
+│   │   ├── TokenResponse.cs                   # AccessToken, RefreshToken, ExpiresAt
+│   │   └── RefreshRequestDto.cs               # RefreshToken
+│   ├── Data/
+│   │   ├── AppDbContext.cs                    # IdentityDbContext + Hero/CounterSuggestion/Comment/etc. DbSets
+│   │   │                                        Unique index: (CommentId, UserId) on SuggestionLike
+│   │   │                                        Unique index: Token on RefreshToken
+│   │   │                                        DeleteBehavior: Restrict on Hero refs, Cascade on Comment/User
+│   │   └── DbInitializer.cs                  # Seed: admin user + OpenDota fetch → heroes + 2 random counters each
+│   └── Constants/
+│       └── AppPolicies.cs                     # CanComment, CanDeleteAnyComment, VerifiedAccount, OwnsComment
+│
+└── CounterPick.Auth/              # JWT generation
+    └── Services/
+        └── TokenService.cs                    # GenerateAccessToken(claims) + GenerateRefreshToken()
+#+end_src
+
+** Entity Relationships
+
+#+begin_src text
+Hero ──┬── CounterSuggestion.HeroId        (Restrict delete)
+       └── CounterSuggestion.CounterHeroId (Restrict delete)
+
+CounterSuggestion ──┬── Comment.CounterSuggestionId (Cascade delete)
+                    └── SuggestedById → IdentityUser.Id (string, no FK)
+
+Comment ──┬── SuggestionLike.CommentId (Cascade delete)
+          └── UserId → IdentityUser.Id (string, no FK)
+          └── Unique index: (CommentId, UserId) on SuggestionLike
+
+RefreshToken.Token → unique index
+RefreshToken.UserId → IdentityUser.Id (string, no FK)
+#+end_src
+
+- `Hero.Roles` is a comma-separated string (not a join table) — pragmatic for a demo.
+- `LikeCount` on Comment is denormalized (stored + counted in SuggestionLike table) for fast reads.
+- No hard FK relationships to `IdentityUser` — UserId is stored as a plain string in Comment, CounterSuggestion, SuggestionLike, and RefreshToken.
+
+** Middleware Pipeline (Program.cs order)
+
+#+begin_src text
+Request
+  → UseDefaultFiles()       — serve index.html for /
+  → UseStaticFiles()        — serve wwwroot/ files
+  → UseHttpsRedirection()   — redirect HTTP → HTTPS
+  → UseCors()               — AllowAnyOrigin/Method/Header
+  → UseRateLimiter()        — enforce SearchLimit + LoginLimit policies
+  → UseAuthentication()     — validate JWT Bearer
+  → UseAuthorization()      — enforce [Authorize] policies
+  → MapControllers()        — route to ApiController endpoints
+#+end_src
+
+** Endpoints
+
+| Method | Path                              | Auth                       | Controller               | Purpose                        |
+|--------+-----------------------------------+----------------------------+--------------------------+--------------------------------|
+| POST   | /auth/login                       | Rate-limited (5/min/IP)    | AuthController           | Login with email/password      |
+| POST   | /auth/register                    | Rate-limited (5/min/IP)    | AuthController           | Register new account           |
+| POST   | /auth/refresh                     | None                       | AuthController           | Rotate refresh token           |
+| POST   | /auth/revoke                      | None                       | AuthController           | Invalidate refresh token       |
+| GET    | /auth/external-login/{provider}   | None                       | AuthController           | Initiate OAuth login           |
+| GET    | /auth/external-callback           | None                       | AuthController           | OAuth callback → local JWT     |
+| GET    | /api/heroes                       | Rate-limited (3/10m anon, 100/min auth) | HeroesController | List all heroes        |
+| GET    | /api/heroes/{id}                  | Rate-limited (same)        | HeroesController         | Hero detail                    |
+| GET    | /api/heroes/{id}/counters         | None                       | CounterSuggestionsController | List counters for a hero     |
+| POST   | /api/heroes/{id}/counters         | JWT (any authenticated)    | CounterSuggestionsController | Add counter suggestion        |
+| GET    | /api/counters/{suggestionId}/comments | None                   | CommentsController       | List comments for a pair       |
+| POST   | /api/counters/{suggestionId}/comments | JWT                    | CommentsController       | Add comment                    |
+| PUT    | /api/comments/{id}                | JWT + comment owner        | CommentController        | Edit own comment               |
+| DELETE | /api/comments/{id}                | JWT + comment owner        | CommentController        | Delete own comment             |
+| POST   | /api/comments/{commentId}/like    | JWT                        | LikesController          | Toggle like/unlike on comment  |
+| GET    | /api/admin/users                  | Admin role                 | AdminController          | List all users                 |
+| DELETE | /api/admin/users/{id}             | Admin role + guard         | AdminController          | Delete user (not self, not "admin") |
+
+** Frontend Pages
+
+| Page            | Route                        | Key JS functions                              | Description                              |
+|-----------------+------------------------------+-----------------------------------------------+------------------------------------------|
+| index.html      | /                            | filterHeroes(), renderHeroes()                | Hero grid with search + attribute filter |
+| hero.html       | /hero.html?id={heroId}      | loadCounters(), loadOtherHeroes()             | Hero detail + counter suggestions        |
+| discussion.html | /discussion.html?suggestionId={id} | loadComments(), editComment(), saveEdit(), cancelEdit(), deleteComment(), toggleLike() | Comments + likes + edit/delete |
+| login.html      | /login.html                  | handleLogin(), handleRegister(), handleExternalLogin() | Login/register forms + OAuth buttons |
+| admin.html      | /admin.html                  | loadUsers(), deleteUser()                     | User table with delete (Admin only)      |
+
+** Auth Helper (js/auth.js)
+
+| Function          | Purpose                                                    |
+|-------------------+------------------------------------------------------------|
+| getToken()        | Read access token from localStorage                        |
+| setTokens()       | Store access + refresh tokens in localStorage              |
+| clearTokens()     | Remove both tokens                                         |
+| isAuthenticated() | Returns !!getToken()                                       |
+| isAdmin()         | Decode JWT payload, check role claim for "Admin"           |
+| getCurrentUserId()| Decode JWT payload, return nameidentifier claim            |
+| tryRefresh()      | POST /auth/refresh with stored refresh token, store new pair|
+| apiFetch()        | Wrapper around fetch(): injects Bearer, handles 401/429    |
+| apiFetchJson()    | apiFetch() + parse JSON (handles 204)                      |
+| showToast()       | Create/destroy toast notification (3s auto-remove)         |
+| updateNavbar()    | Toggle login/logout/admin links based on auth state        |
+| initNavbar()      | Register DOMContentLoaded listener for navbar + logout btn |
+
+** Auth Flow
+
+#+begin_src text
+── Password Login ──
+  POST /auth/login { username, password }
+    → UserManager.FindByNameAsync
+    → UserManager.CheckPasswordAsync
+    → TokenService.GenerateAccessToken (claims: NameIdentifier, Name, Email, roles)
+    → GenerateRefreshToken (64 random bytes, Base64)
+    → Save RefreshToken to DB (ExpiresAt = UtcNow + 7 days)
+    → Return { accessToken, refreshToken, expiresAt }
+    → Client stores both in localStorage
+    → Every apiFetch() sets Authorization: Bearer <accessToken>
+    → On 401: tryRefresh() POSTs /auth/refresh → new token pair → retry original request
+    → On 429: showToast("Rate limited — slow down!")
+
+── OAuth Login (Google/Microsoft) ──
+  GET /auth/external-login/{provider}
+    → Challenge(properties, provider) → redirects to Google/MS consent page
+    → User approves → redirects to /auth/external-callback
+    → GetExternalLoginInfoAsync
+    → ExternalLoginSignInAsync (existing link?)
+    → If not linked: FindByEmail → CreateAsync + AddLoginAsync
+    → Add Claim("ExternalLogin", "true") → satisfies VerifiedAccount policy
+    → Redirect to /login.html#access_token=...&refresh_token=...
+
+── Token Refresh ──
+  POST /auth/refresh { refreshToken }
+    → Find token in DB
+    → Check: exists? revoked? expired?
+    → If revoked → revoke ALL user tokens (theft detection)
+    → Mark old token as revoked
+    → Generate new access + refresh tokens
+    → Save new RefreshToken to DB
+    → Return new pair
+
+── Token Revocation ──
+  POST /auth/revoke { refreshToken }
+    → Find token in DB → mark IsRevoked = true
+    → (Client can call this on logout)
+#+end_src
+
+** Rate Limiting
+
+| Policy       | Partition key         | Window   | Permits | Applied to                                  |
+|--------------+-----------------------+----------+---------+---------------------------------------------|
+| SearchLimit  | RemoteIp (anon)       | 10 min   | 3       | GET /api/heroes, GET /api/heroes/{id}       |
+| SearchLimit  | UserId claim (auth)   | 1 min    | 100     | GET /api/heroes, GET /api/heroes/{id}       |
+| LoginLimit   | RemoteIp              | 1 min    | 5       | POST /auth/login, POST /auth/register       |
+
+- `SegmentsPerWindow = 1` → behaves as fixed window, not truly sliding.
+- Static files (wwwroot/) are NOT rate-limited.
+
+** Authorization Policies
+
+| Policy String          | Requirement                              | Used On                          |
+|-----------------------+------------------------------------------+----------------------------------|
+| CanComment            | Authenticated user                       | (declared, not referenced)       |
+| CanDeleteAnyComment   | Admin role                               | (declared, not referenced)       |
+| VerifiedAccount       | Claim("ExternalLogin", "true")           | (declared, not referenced)       |
+| OwnsComment           | CommentOwnerRequirement + CommentOwnerHandler | PUT/DELETE /api/comments/{id} |
+
+CommentOwnerHandler:
+  - Reads ClaimTypes.NameIdentifier from JWT
+  - Compares to Comment.UserId
+  - Succeeds only if they match (no admin override)
+
+** Setup
+
+JWT signing key is pre-set in user-secrets.
+
+To override:
+
+#+begin_src sh
+dotnet user-secrets set "Jwt:Key" "your-256-bit-secret-key-here-min-32-chars"
+#+end_src
+
+Optional — enable Google / Microsoft OAuth buttons:
+
+#+begin_src sh
+dotnet user-secrets set "Google:ClientId" "..."
+dotnet user-secrets set "Google:ClientSecret" "..."
+dotnet user-secrets set "Microsoft:ClientId" "..."
+dotnet user-secrets set "Microsoft:ClientSecret" "..."
+#+end_src
+
+Run:
+#+begin_src sh
+dotnet run --project CounterPick.Api
+#+end_src
+
+Open http://localhost:5195 in browser.
+
+** How to Use
+
+*** 1. Browse heroes (anonymous)
+- Home (/) shows all 127 heroes in a responsive grid (6 cols on large screens → 2 cols on mobile).
+- Search bar filters by localized name clientside.
+- Attribute buttons filter by primary attribute (Strength/Agility/Intelligence/Universal).
+  Universal heroes have primaryAttr = "all" (per OpenDota API).
+- Hero count updates live as you filter.
+- Status: anonymous → 3 hero page loads per 10 min; toast on 429.
+
+*** 2. View hero details & counters
+- Click any hero → hero.html?id={id}
+- Shows: large portrait, name, attribute badge, attack type, role tags.
+- Below: counter suggestions — each shows counter hero icon, name, top comment (most liked), and "Discuss" link with comment count.
+- The "Suggest a Counter" form appears only when logged in.
+- Seed data: 2 random counter suggestions per hero, posted by admin.
+
+*** 3. Register
+- Login (top-right) → /login.html → Register tab.
+- Fields: username (3-50 chars), email, password (6-100 chars).
+- On success: immediately logged in (JWT stored, navbar shows username + Logout).
+- Rate-limited: same 5/min/IP as login.
+
+*** 4. Login
+- /login.html → fields: username, password.
+- Seed admin: admin / Dota2@Secure2024!
+- On success: JWT stored, redirected to heroes page.
+- If Google/MS OAuth configured: buttons on login page redirect to provider consent.
+
+*** 5. Add counter suggestions
+- While viewing a hero page and logged in → "Suggest a Counter" form.
+- Select counter hero (dropdown excludes current hero), type reason, click Submit.
+- New suggestion appears immediately (no moderation).
+
+*** 6. Discuss & vote
+- Click "Discuss (N)" on any counter → /discussion.html?suggestionId={id}.
+- Comments list sorted by like count (desc), then date (desc).
+- Each comment shows: username, date, content, like button (♥ + count).
+- Post: type in input field, click Post.
+- Like: click ♥ on any comment — toggles like/unlike. Count updates live.
+- Edit own: click Edit → inline input replaces content → Save or Cancel.
+- Delete own: click Delete → confirm dialog → removed.
+
+*** 7. Admin panel
+- Login as admin → Admin link appears in navbar → /admin.html.
+- Table: username, email, lockout status, failed login count.
+- Delete: click Delete → confirm. Cannot delete yourself or the seed "admin" user.
+  (Client-side: button disabled for "admin". Server-side: returns 400.)
+
+*** 8. Token refresh (automatic)
+- Access tokens expire in 15 min.
+- On any 401 API response, apiFetch() tries tryRefresh() once.
+  - POST /auth/refresh with stored refresh token.
+  - If success: new tokens stored, original request retried.
+  - If fail: tokens cleared, redirect to /login.html.
+- Refresh tokens expire in 7 days or can be revoked server-side.
+
+** Implementation Notes
+- OAuth providers are registered conditionally (skip if ClientId/ClientSecret not in user-secrets).
+- External login creates local IdentityUser on first visit (matched by email) and adds "ExternalLogin" claim.
+- Rate limiter SegmentsPerWindow=1 → fixed window behavior (resets fully at window boundary).
+- CounterSuggestions use two FKs to Hero (HeroId + CounterHeroId) with Restrict delete.
+- Comment likes: unique index on (CommentId, UserId), denormalized LikeCount on Comment.
+- SuggestionLike stores *comment* likes, not suggestion likes — slightly misleading name.
+- CommentsController GET loads ALL IdentityUsers into memory for name resolution (not scalable).
+- AddCommentDto / AddCounterDto / UpdateCommentDto are defined inline in controller files (not in Core/DTOs).
+- No duplicate-counter-suggestion guard — same user can suggest the same pair multiple times.
+- RefreshToken has no navigation to IdentityUser — UserId is a plain string.
+- Token visible in URL fragment on OAuth callback (accepted learning-project limitation).

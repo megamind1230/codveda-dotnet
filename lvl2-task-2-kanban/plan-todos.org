@@ -1,0 +1,171 @@
+* Phase 0 — Prerequisites
+
+** DONE 0.1 Verify .NET 8.0 SDK is installed
+** DONE 0.2 Check available templates
+
+* Phase 1 — Solution scaffolding
+
+** DONE 1.1 Create root directory
+** DONE 1.2 Create solution file
+** DONE 1.3 Create shared class library
+** DONE 1.4 Create MVC project
+** DONE 1.5 Create Razor Pages project
+** DONE 1.6 Create Mixed.Minimal project
+** DONE 1.7 Create Mixed.ApiController project
+** DONE 1.8 Add Core project reference to each web project
+** DONE 1.9 Add all projects to solution
+** DONE 1.10 Verify solution builds
+
+* Phase 2 — Shared data layer (Kanban.Core)
+
+** DONE 2.1 Add EF Core SQLite NuGet packages to Kanban.Core
+** DONE 2.2 Create Models/Column.cs
+** DONE 2.3 Create Models/Card.cs
+** DONE 2.4 Create Data/KanbanDbContext.cs
+
+* Phase 3 — Shared services (Kanban.Core)
+
+** DONE 3.1 Create Services/IColumnService.cs
+** DONE 3.2 Create Services/ColumnService.cs
+** DONE 3.3 Create Services/ICardService.cs
+** DONE 3.4 Create Services/CardService.cs
+
+* Phase 4 — Kanban.Mvc (pure MVC)
+
+** DONE 4.1 Add SQLite connection string to appsettings.json
+** DONE 4.2 Register DbContext + services in Program.cs
+** DONE 4.3 Create Controllers/BoardController.cs
+** DONE 4.4 Create Views/Board/Index.cshtml
+** DONE 4.5 Create Views/Board/_Column.cshtml (partial)
+** DONE 4.6 Create Views/Board/_Card.cshtml (partial)
+** DONE 4.7 Create Controllers/CardController.cs
+** DONE 4.8 Create Views/Card/Create.cshtml
+** DONE 4.9 Create Views/Card/Edit.cshtml
+** DONE 4.10 Create Views/Card/Delete.cshtml
+** CANCELLED 4.11 Create ViewModels/BoardViewModel.cs (not needed)
+** DONE 4.12 Add drag-drop: SortableJS CDN + board.js + PATCH endpoint
+** DONE 4.13 Fix default route: Home → Board
+** DONE 4.14 Fix Column validation: [BindNever] on Card.Column
+
+* Phase 5 — Kanban.RazorPages
+
+** DONE 5.1 Add SQLite connection string to appsettings.json
+** DONE 5.2 Register DbContext + services in Program.cs
+** DONE 5.3 Create Pages/Board/Index.cshtml + Index.cshtml.cs
+** DONE 5.4 Create Pages/Cards/Create.cshtml + Create.cshtml.cs
+** DONE 5.5 Create Pages/Cards/Edit.cshtml + Edit.cshtml.cs
+** DONE 5.6 Create Pages/Cards/Delete.cshtml + Delete.cshtml.cs
+** DONE 5.7 Board Index Razor layout
+** DONE 5.8 Add drag-drop: SortableJS CDN + board.js + PATCH endpoint
+** DONE 5.9 Fix Home redirect: Index → /Board/Index
+
+* Phase 6 — Kanban.Mixed.Minimal (Razor Pages UI + Minimal API)
+
+** DONE 6.1 Add SQLite connection string to appsettings.json
+** DONE 6.2 Add Razor Pages services to Program.cs
+** DONE 6.3 Register DbContext + services in Program.cs
+** DONE 6.4 Add Razor Pages middleware
+** DONE 6.5 Copy Pages/Board/ from RazorPages project
+** DONE 6.6 Create Minimal API endpoints in Program.cs
+** DONE 6.7 Create wwwroot/js/board.js
+** DONE 6.8 Refactor MoveDto → shared MoveCardRequest
+
+** DONE 6.9 Copy Pages/Index.cshtml + Index.cshtml.cs from RazorPages
+** DONE 6.10 Copy Pages/Privacy.cshtml + Privacy.cshtml.cs from RazorPages
+** DONE 6.11 Copy Pages/Error.cshtml + Error.cshtml.cs from RazorPages
+** DONE 6.12 Copy wwwroot/lib/ from RazorPages (bootstrap, jquery, validation)
+** DONE 6.13 Copy wwwroot/css/site.css from RazorPages
+** DONE 6.14 Copy wwwroot/js/site.js from RazorPages
+** DONE 6.15 Copy wwwroot/favicon.ico from RazorPages
+
+* Phase 7 — Kanban.Mixed.ApiController (Razor Pages UI + MVC API Controllers)
+
+** DONE 7.1 Add SQLite connection string to appsettings.json
+** DONE 7.2 Add Razor Pages + Controllers services
+** DONE 7.3 Register DbContext + services
+** DONE 7.4 Map Razor Pages + Controllers
+** DONE 7.5 Copy Pages/Board/ from RazorPages project
+** DONE 7.6 Create Controllers/Api/CardsController.cs
+** DONE 7.7 Create wwwroot/js/board.js
+** DONE 7.8 Refactor MoveDto → shared MoveCardRequest
+
+** DONE 7.9 Copy Pages/Index.cshtml + Index.cshtml.cs from RazorPages
+** DONE 7.10 Copy Pages/Privacy.cshtml + Privacy.cshtml.cs from RazorPages
+** DONE 7.11 Copy Pages/Error.cshtml + Error.cshtml.cs from RazorPages
+** DONE 7.12 Copy wwwroot/lib/ from RazorPages (bootstrap, jquery, validation)
+** DONE 7.13 Copy wwwroot/css/site.css from RazorPages
+** DONE 7.14 Copy wwwroot/js/site.js from RazorPages
+** DONE 7.15 Copy wwwroot/favicon.ico from RazorPages
+
+* Phase 8 — Middleware + ports
+
+** DONE 8.1 Create RequestTimingMiddleware in Kanban.Core
+** DONE 8.2 Create extension method UseRequestTiming()
+** DONE 8.3 Register middleware in all 4 Program.cs files
+** DONE 8.4 Configure Kestrel ports in launchSettings.json
+
+* Phase 9 — CSS styling
+
+** DONE 9.1 Create wwwroot/css/kanban.css in each project
+** DONE 9.2 Link kanban.css in _Layout.cshtml of each project
+** DONE 9.3 Three column accent colors via CSS classes
+
+* Phase 10 — JavaScript drag-drop (all 4 projects)
+
+** DONE 10.1 Add SortableJS CDN to _Layout.cshtml of all projects
+** DONE 10.2 Create wwwroot/js/board.js (copy to all projects)
+** DONE 10.3 Add data-column-id attribute to Board Index views
+** DONE 10.4 Add PATCH /api/cards/{id}/move endpoint to MVC + RazorPages
+
+* Phase 11 — Seed data
+
+** DONE 11.1 Create Data/DbInitializer.cs in Kanban.Core
+** DONE 11.2 Call DbInitializer.Seed() in each Program.cs
+
+* Phase 12 — Shared DTO
+
+** DONE 12.1 Create Models/MoveCardRequest.cs in Kanban.Core
+** DONE 12.2 Refactor MoveDto → MoveCardRequest in all projects
+
+* Phase 13 — Bug fixes
+
+** DONE 13.1 Fix Column validation: [BindNever] on Card.Column
+** DONE 13.2 Fix MVC default route: Home → Board
+** DONE 13.3 Fix RazorPages Home: redirect to /Board/Index
+** DONE 13.4 Copy missing files to both Mixed projects
+- wwwroot/lib/ (Bootstrap, jQuery), wwwroot/css/site.css, wwwroot/js/site.js, favicon.ico
+- Pages/Index.cshtml, Privacy.cshtml, Error.cshtml (+ .cshtml.cs)
+- Root 404 → fixed (Index page redirects to /Board)
+
+** DONE 13.5 Fix navbar in all 4 projects
+- Brand + nav link → Board, Privacy removed
+
+** DONE 13.6 Fix unique index constraint in KanbanDbContext
+- Removed IsUnique() from (ColumnId, Order) index — was blocking drag-drop
+
+** DONE 13.7 Smooth drag-drop: CSS transitions + SortableJS easing + fallback styling
+
+** DONE 13.8 Fix mouse alignment during drag: forceFallback + fallback CSS
+** DONE 13.9 Prevent text selection during drag: user-select none + body override
+** DONE 13.10 Fix Column validation: [BindNever] → [ValidateNever] on Card.Column
+
+** DONE 13.11 Make each project fully standalone (namespaces, data, CSS, references)
+- Changed page model namespaces: Kanban.RazorPages.Pages.* → Kanban.Mixed.Minimal.Pages.* / Kanban.Mixed.ApiController.Pages.*
+- Changed _ViewImports @namespace and @using accordingly
+- Updated @model directives in all .cshtml files
+- All 5 projects build with 0 warnings, 0 errors
+- BUG 26 (namespace leak) resolved
+
+** DONE 13.12 Verify each project runs (build passes 0/0)
+#+begin_src sh
+  dotnet run --project Kanban.Mvc              # localhost:5001
+  dotnet run --project Kanban.RazorPages       # localhost:5002
+  dotnet run --project Kanban.Mixed.Minimal    # localhost:5003
+  dotnet run --project Kanban.Mixed.ApiController  # localhost:5004
+#+end_src
+
+
+* DONE  add logs
+  - Added ILogger<T> to CardService, ColumnService, DbInitializer in Kanban.Core
+  - All 4 Program.cs files now pass ILogger to DbInitializer.Seed
+  - Structured logging (LogInformation, LogWarning, LogDebug) on all CRUD operations
