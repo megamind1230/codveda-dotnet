@@ -7,6 +7,8 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.File("logs/app-.log", rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
+ReadLine.AutoCompletionHandler = new FilePathCompletion();
+
 var config = ParseArgs(args);
 if (config == null)
     return;
@@ -58,9 +60,21 @@ static OrganizerConfig? ParseArgs(string[] args)
 
     if (string.IsNullOrEmpty(sourceDir))
     {
-        Console.WriteLine("[ERROR] --source is required.");
-        Console.WriteLine("Usage: --source <path> [--patterns \"kw1,kw2\"] [--dry-run] [--reverse] [--one-shot] [--regex]");
-        return null;
+        sourceDir = ReadLine.Read("Enter source directory path: ").Trim();
+        ExpandTilde(ref sourceDir);
+        while (string.IsNullOrEmpty(sourceDir) || !Directory.Exists(sourceDir))
+        {
+            if (string.IsNullOrEmpty(sourceDir))
+                Console.WriteLine("[ERROR] Path cannot be empty.");
+            else
+                Console.WriteLine($"[ERROR] Directory does not exist: {sourceDir}");
+            sourceDir = ReadLine.Read("Enter source directory path: ").Trim();
+            ExpandTilde(ref sourceDir);
+        }
+    }
+    else
+    {
+        ExpandTilde(ref sourceDir);
     }
 
     if (!Directory.Exists(sourceDir))
@@ -78,4 +92,70 @@ static OrganizerConfig? ParseArgs(string[] args)
         Interactive = !oneShot,
         UseRegex = useRegex
     };
+}
+
+static void ExpandTilde(ref string? path)
+{
+    if (string.IsNullOrEmpty(path)) return;
+    if (path.StartsWith('~'))
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        path = home + path[1..];
+    }
+}
+
+class FilePathCompletion : IAutoCompleteHandler
+{
+    public char[] Separators { get; set; } = [];
+
+    public string[] GetSuggestions(string text, int index)
+    {
+        if (string.IsNullOrEmpty(text))
+            return SuggestInDir(Directory.GetCurrentDirectory(), "", "");
+
+        if (text.StartsWith('~'))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (text.Length == 1)
+                return SuggestInDir(home, "", "~/");
+
+            var afterTilde = text[1..];
+            var lookupPath = home + afterTilde;
+            var dir = Path.GetDirectoryName(lookupPath) ?? home;
+            var prefix = Path.GetFileName(lookupPath);
+            var resultPrefix = "~" + afterTilde[..^prefix.Length];
+            return SuggestInDir(dir, prefix, resultPrefix);
+        }
+
+        var searchDir = Path.GetDirectoryName(text);
+        var fileName = Path.GetFileName(text);
+
+        if (string.IsNullOrEmpty(searchDir))
+            return SuggestInDir(Directory.GetCurrentDirectory(), fileName, "");
+
+        var resultPre = text[..^fileName.Length];
+        return SuggestInDir(searchDir, fileName, resultPre);
+    }
+
+    static string[] SuggestInDir(string dir, string prefix, string resultPrefix)
+    {
+        if (!Directory.Exists(dir))
+            return [];
+
+        try
+        {
+            return Directory.GetFileSystemEntries(dir, prefix + "*")
+                .Select(e =>
+                {
+                    var name = Path.GetFileName(e);
+                    var suffix = Directory.Exists(e) ? "/" : "";
+                    return resultPrefix + name + suffix;
+                })
+                .ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
 }

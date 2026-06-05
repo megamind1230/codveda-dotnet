@@ -5,7 +5,7 @@ Cross-platform file organization tool built with .NET + Avalonia.
 ** Prerequisites
 
 - .NET 8.0 SDK or later
-- Avalonia UI templates (optional, for development):
+- Avalonia UI templates (optional, for GUI development):
   #+begin_src sh
   dotnet new install Avalonia.Templates
   #+end_src
@@ -17,19 +17,50 @@ dotnet restore
 dotnet build
 #+end_src
 
+** Tech Stack
+
+| Layer        | Technology                              |
+|--------------+-----------------------------------------|
+| Core logic   | .NET 8 class library (C#)               |
+| CLI frontend | .NET 8 console app + ReadLine NuGet pkg |
+| GUI frontend | Avalonia 11 + CommunityToolkit.Mvvm     |
+| Logging      | Serilog (Console + rolling file)        |
+| Bash version | Standalone bash script (no deps)        |
+
+** Project structure
+
+- =FileOrganizer.Core/= — Shared class library
+  - =Models/FileEntry.cs= — File metadata model (with value equality)
+  - =Models/OrganizerConfig.cs= — Configuration model
+  - =Services/FileScanner.cs= — Directory scanner with error resilience
+  - =Services/CategoryResolver.cs= — Extension-to-category mapping
+  - =Services/NamedPatternResolver.cs= — Keyword/regex pattern matcher
+  - =Services/FileMover.cs= — Move/unorganize logic with dry-run support
+  - =FileOrganizer.cs= — Orchestrator (interactive dashboard + one-shot)
+- =FileOrganizer.Cli/= — Console frontend
+- =FileOrganizer.Gui/= — Avalonia desktop GUI
+- =file-organizer= — Bash version (feature parity)
+
 ** Usage
 
 *** CLI
 
 The CLI has two modes:
 
-**** Interactive mode (default)
+**** Interactive dashboard (default)
 
-Run with =--source= alone to enter the interactive dashboard:
+Run with or without =--source= — if omitted, you'll be prompted:
 
 #+begin_src sh
+# Prompted for source path (with Tab completion + ~ expansion)
+dotnet run --project FileOrganizer.Cli --
+
+# Or pass --source directly
 dotnet run --project FileOrganizer.Cli -- --source ~/Downloads
 #+end_src
+
+When prompted, press Tab to auto-complete paths. Tilde (=~=) is expanded to
+the home directory.
 
 Menu:
 
@@ -74,32 +105,40 @@ dotnet run --project FileOrganizer.Cli -- --source ~/Downloads --one-shot --reve
 
 Arguments:
 
-| Argument     | Required | Description                                                    |
-|--------------+----------+----------------------------------------------------------------|
-| =--source=   | Yes      | Path to the directory to organize                              |
-| =--patterns= | No       | Comma-separated keywords/regex patterns for named-pattern pass |
-| =--dry-run=  | No       | Flag — preview only, no files are moved                        |
-| =--reverse=  | No       | Flag — undo organization, pull files from subfolders up        |
-| =--one-shot= | No       | Flag — one-shot mode (default is interactive dashboard)        |
-| =--regex=    | No       | Flag — interpret =--patterns= values as neovim-style regular expression |
+| Argument     | Required     | Description                                                    |
+|--------------+--------------+----------------------------------------------------------------|
+| =--source=   | No (prompted)| Path to the directory to organize                              |
+| =--patterns= | No           | Comma-separated keywords/regex patterns for named-pattern pass |
+| =--dry-run=  | No           | Flag — preview only, no files are moved                        |
+| =--reverse=  | No           | Flag — undo organization, pull files from subfolders up        |
+| =--one-shot= | No           | Flag — one-shot mode (default is interactive dashboard)        |
+| =--regex=    | No           | Flag — interpret =--patterns= values as regex                  |
+
+If =--source= is omitted, the CLI prompts interactively for the path with
+Tab auto-completion (via the ReadLine NuGet package).  =~= is expanded to
+the user's home directory.
 
 *** Bash script
 
-An equivalent bash version is included as =file-organizer=:
+A standalone bash version is included as =file-organizer= (=chmod +x= it):
 
 #+begin_src sh
-./file-organizer --source ~/Downloads                           # interactive mode
-./file-organizer --source ~/Downloads --one-shot                # sort by category
+./file-organizer                                    # prompted for source
+./file-organizer --source ~/Downloads               # interactive dashboard
+./file-organizer --source ~/Downloads --one-shot    # sort by category
 ./file-organizer --source ~/Downloads --patterns "report,photo" --one-shot
 ./file-organizer --source ~/Downloads --patterns "^IMG_,\d{4}" --regex --one-shot
 ./file-organizer --source ~/Downloads --reverse --dry-run
 #+end_src
 
-All arguments are identical to the CLI version above.
+If =--source= is omitted, the script prompts for the path with Tab
+completion (via bash readline =read -e=) and expands =~= to =$HOME=.
 
-*Note on regex patterns:* In regex mode, bare =*= is treated as a regex quantifier
-(invalid on its own) — not as a glob wildcard. Use =.*= to match any sequence of
-characters, e.g. =--patterns ".*report.*" --regex=.
+All arguments are identical to the CLI version.
+
+*Note on regex patterns:* Bare =*= is treated as a regex quantifier (invalid
+on its own) — not a glob wildcard. Use =.*= to match any sequence:
+=--patterns ".*report.*" --regex=.
 
 *** GUI
 
@@ -148,7 +187,9 @@ The tool uses a two-pass approach:
 
 ** Reverse mode
 
-Undoes the organization: scans every subfolder inside the source directory and moves all files back up to the source root. File name conflicts are handled by appending =(1)=, =(2)=, etc.
+Undoes the organization: scans every subfolder inside the source directory
+and moves all files back up to the source root.  File name conflicts are
+handled by appending =(1)=, =(2)=, etc.
 
 #+begin_src sh
 # CLI
@@ -164,16 +205,36 @@ In the GUI, click the *Reverse!* button (works with the Dry Run checkbox too).
 
 Both CLI and GUI write structured logs to =logs/app-YYYYMMDD.log= via
 Serilog.  The logs capture scan results, moved/skipped files, invalid
-regex patterns, and errors.  Files are rolled daily and kept in a
-=logs/= directory next to the executable.
+regex patterns, and errors.  Files are rolled daily.
 
-** Project structure
+** Interactive prompt flow
 
-- =FileOrganizer.Core/= — Shared class library (models, services, orchestrator)
-- =FileOrganizer.Cli/= — Console frontend
-- =FileOrganizer.Gui/= — Avalonia desktop GUI
+When =--source= is omitted from the CLI:
 
-See =bug-fixes.org= for a list of known bugs and their fixes.
+1. The app displays an interactive prompt: =Enter source directory path: =
+2. Tab key triggers filesystem auto-completion (managed by the ReadLine library's =FilePathCompletion= handler)
+3. Tilde (=~=) is expanded to the home directory before validation
+4. The path is validated — if empty or non-existent, the prompt repeats
+5. Once a valid directory is entered, the interactive dashboard starts
+
+The bash version (=file-organizer=) has identical behavior using =read -e=
+for readline support and =${SOURCE_DIR/#~/$HOME}= for tilde expansion.
+
+** NuGet dependencies
+
+CLI project (=FileOrganizer.Cli=):
+- =ReadLine= (2.0.1) — GNU Readline-like input with Tab auto-completion for file paths
+- =Serilog.Sinks.Console= (6.1.1)
+- =Serilog.Sinks.File= (7.0.0)
+
+GUI project (=FileOrganizer.Gui=):
+- =Avalonia= (desktop UI framework)
+- =CommunityToolkit.Mvvm= (MVVM source generators)
+- =Serilog.Sinks.Console=
+- =Serilog.Sinks.File=
+
+Core project (=FileOrganizer.Core=):
+- =Serilog= (logging abstraction)
 
 ** careful with this
 
@@ -181,3 +242,5 @@ See =bug-fixes.org= for a list of known bugs and their fixes.
 sometime you gonna be moving files into folders/directories starting with `.` especially when working with regex
 which makes that folder/directory =hidden= by default in some =File Managers=
 #+end_src
+
+See =bugs.org= for known issues and fixes.
