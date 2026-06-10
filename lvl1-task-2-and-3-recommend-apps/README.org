@@ -1,38 +1,32 @@
-* OOP main topics
+* some of OOP main topics
 - object/class
-- Constructor = the automatic builder of the object
-  - sometimes makes it easier to initialize the object + validate data
-- Methods = behaviors
-  - bussiness logic done on the data
+- Constructor = the automatic builder of the object: sometimes makes it easier to initialize the object + validate data (sometimes)
+- Methods = behaviors: bussiness logic done on the data
 - Properties and Fields
-  - fields are private {almost always}, properties help assign them
-    properly and safely
+    - fields are private {almost always}
+    - properties help assign them properly and safely
 - Access modifiers (private/public/protected/internal/protected
-  internal)
-  - give access to whom you trust
+  internal): give access to who you trust
 - Abstraction, Encapsulation *hiding internal data* and controlling
   access through methods or properties.
-- Inheritance
-  - if you resemble something ..reuse/make use of its code
-- Polymorphism (the hardest part .. almost) = {multi forms}.. methods
-  related > "One interface, many forms." > A parent reference can call
-  different child implementations.
+- Inheritance: if you resemble something ..reuse/make use of its code
+- Polymorphism (the hardest part .. almost)
+    - {multi forms} "same function, many forms."
+    - A parent reference can call different child implementations.
 
 * polymorphism example
 #+begin_src csharp
-class Animal
-{
-    public virtual void MakeSound() {Console.WriteLine("Animal sound");}
-}
+  class Animal {
+      public virtual void MakeSound() {Console.WriteLine("Animal sound");}
+  }
 
-class Dog : Animal
-{
-    public override void MakeSound() {Console.WriteLine("Woof");}
-}
-class Cat : Animal
-{
-    public override void MakeSound() {Console.WriteLine("Meow");}
-}
+
+  class Dog : Animal {
+      public override void MakeSound() {Console.WriteLine("Woof");}
+  }
+  class Cat : Animal {
+      public override void MakeSound() {Console.WriteLine("Meow");}
+  }
 #+end_src
 
 #+begin_src csharp
@@ -60,19 +54,13 @@ Access modifiers control visibility. {depending on what you need}
 | =protected internal= | Derived classes OR same assembly |
 
 ** Real Use Cases
-- =private=
-  - Internal calculations
-  - Sensitive data
-  - Helper methods
-- =protected=
-  - Base class logic for child classes
-- =public=
-  - APIs exposed to other code
-- =internal=
-  - Shared project utilities
+- =private= * Internal calculations * Sensitive data * Helper methods
+- =protected= * Base class logic for child classes
+- =public= * APIs exposed to other code
+- =internal= * Shared project utilities
 
-Start restrictive, then open access only if needed. Typical order: > 1.
-=private= 2. =protected= 3. =internal= 4. =public= Good developers
+Start restrictive, then open access only if needed.
+Typical order: > 1. =private= 2. =protected= 3. =internal= 4. =public= Good developers
 usually avoid making everything =public=.
 
 * properties vs fields
@@ -80,8 +68,7 @@ Properties provide controlled access to fields.
 
 ** Automatic Property
 #+begin_src csharp
-class Student
-{
+class Student {
     public string Name { get; set; }
 }
 #+end_src
@@ -90,11 +77,11 @@ class Student
 #+begin_src csharp
 class User
 {
-    public string Username { get; init; }
+    public string Username { get; init; } //set once
 }
 #+end_src
 
-** Full Property
+** Full/custom Property
 #+begin_src csharp
 class Product
 {
@@ -118,50 +105,60 @@ class Product
 --------------
 
 * =try-catch-finally= Basic Structure
-=csharp id="h1by2x" try {     // risky code } catch (Exception ex) {     // handle error } finally {     // cleanup code }=
 
-** finally
+#+begin_src csharp
+        try {     // risky code
+        }
+        catch (Exception ex) {     // handle error
+        }
+        finally {     // cleanup code
+        }
+#+end_src
 
 #+begin_quote
 =finally= Used for cleanup: * closing files * database connections *
 network sockets
 #+end_quote
 
-The =finally= block runs *always*: - whether an error happened - or not
-
-commonly used for: - closing files - releasing database connections -
-cleaning resources
+The =finally= block runs *always*: - whether an error happened or not
 
 Modern C# way: =using= automatically closes the file for you.
 
 *** Example:
-=csharp id="gajglf" FileStream file = null; try {     file = File.OpenRead("data.txt"); } catch (Exception ex) {     Console.WriteLine(ex.Message); } finally {     file?.Close(); }=
-​#### Meaning of =?.= *null conditional operator*.
+
+#+begin_src csharp
+FileStream file = null;
+try {     file = File.OpenRead("data.txt"); }
+catch (Exception ex) {     Console.WriteLine(ex.Message); }
+finally {     file?.Close(); }
+#+end_src
+
+**** Meaning of =?.= *null conditional operator*.
 
 =file?.Close();=
+    means: > "If =file= is NOT null, call =Close()=."
+    Equivalent old-style code: =if (file != null){    file.Close();}=
 
-means: > "If =file= is NOT null, call =Close()=."
 
-Equivalent old-style code: =if (file != null){    file.Close();}=
+
 
 * =Custom Exceptions=
-built-in exceptions are too generic? then make a class that inherits the
-=Exception= base class
 
-```csharp id="8h1hmy" class WeakPasswordException : Exception { public
-WeakPasswordException(string message) : base(message) {
+built-in exceptions are too generic? then make a class that inherits the =Exception= base class
 
-#+begin_example
-}
-#+end_example
+#+begin_src csharp
+  class WeakPasswordException : Exception {
 
-}
+      public WeakPasswordException(string message) : base(message) {
+      }
 
-#+begin_example
+  }
+#+end_src
 
 Usage:
 
-```csharp id="j3wl7r"
+
+#+begin_src csharp
 static void Register(string password)
 {
     if (password.Length < 8)
@@ -169,11 +166,9 @@ static void Register(string password)
 
     Console.WriteLine("Registered");
 }
-#+end_example
+#+end_src
 
-Handling it:
-
-=csharp id="1ivvkk" try {     Register("123"); } catch (WeakPasswordException ex) {     Console.WriteLine(ex.Message); }=
+Handling it: =try {     Register("123"); } catch (WeakPasswordException ex) {     Console.WriteLine(ex.Message); }=
 
 * Debugging in Visual Studio
 - =F9= → toggle breakpoint
@@ -187,6 +182,7 @@ Handling it:
 | =Shift + F11= | Step out  |
 
 *** Useful Debug Windows
+
 | Window     | Purpose                 |
 |------------+-------------------------|
 | Watch      | Monitor variables       |
@@ -195,56 +191,66 @@ Handling it:
 | Output     | Logs/debug output       |
 
 * Logging (Serilog / NLog)
-Better than only using: =csharp id="9i7jv7" Console.WriteLine()= why
-logs? Because logs can: * persist to files * store timestamps * store
-error details,stack trace * help production debugging
 
-Real Production Logging Apps often log: * user logins * failed payments
-​* database errors * API failures * performance issues
+Better than only using: =Console.WriteLine()=
+
+why logs? Because logs can: * persist to files * store timestamps * store error details,stack trace * help production debugging
+
+Real Production Logging Apps often log: * user logins * failed payments ​* database errors * API failures * performance issues
 
 * Mini Real-World Example of exception handling + logging
-```csharp id="qjlwmw" using Serilog;
+#+begin_src csharp
+  using Serilog;
 
-class Program { static void Main() { Log.Logger = new
-LoggerConfiguration() .WriteTo.Console() .CreateLogger();
+  class Program {
+      static void Main() {
+          Log.Logger = new .oggerConfiguration()
+              .WriteTo.Console()
+              .CreateLogger();
 
-#+begin_example
-    try {
-        Login("admin", "123");
-    }
-    catch (WeakPasswordException ex) {
-        Log.Warning(ex.Message);
-    }
-    catch (Exception ex) {
-        Log.Error(ex, "Unexpected error");
-    }
-    finally
-    {
-        Log.Information("Application closed");
-    }
+      try {
+          Login("admin", "123");
+      }
+      catch (WeakPasswordException ex) {
+          Log.Warning(ex.Message);
+      }
+      catch (Exception ex) {
+          Log.Error(ex, "Unexpected error");
+      }
+      finally
+      {
+          Log.Information("Application closed");
+      }
+  }
+
+  static void Login(string user, string password)
+  {
+      if (password.Length < 8)
+          throw new WeakPasswordException("Weak password");
+
+      Console.WriteLine("Logged in");
+  }
+
+  class WeakPasswordException : Exception {
+
+      public WeakPasswordException(string message) : base(message) { }
+
+  }
 }
+#+end_src
 
-static void Login(string user, string password)
-{
-    if (password.Length < 8)
-        throw new WeakPasswordException("Weak password");
 
-    Console.WriteLine("Logged in");
-}
-#+end_example
-
-}
-
-class WeakPasswordException : Exception { public
-WeakPasswordException(string message) : base(message) { } } ```
 
 * task OOP applied
+
 ** about
+
 THIS APP TAKES SOME USER DATA {NAME, AGE, PROFESSION} + SOME MORE
 QUESTIONS FOR CLARITY THEN RECOMMENDS SOME USEFUL APP BASED ON
 INTERESTS/THOSE ANSWERS
 
 ** The app uses almost every OOP concept:
+
 1. Encapsulation --- User hides _name, _age, _profession as private
    fields, exposing them only via init-only properties. The Answers list
    is protected, so only derived classes can modify it.
@@ -259,7 +265,6 @@ INTERESTS/THOSE ANSWERS
    reference, and C# goes to the correct runtime type accordingly
 
 4. Access Modifiers:
-
    - private fields,
    - pubic properties
    - protected =Answers= list

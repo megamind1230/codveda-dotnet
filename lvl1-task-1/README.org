@@ -12,45 +12,23 @@
 * evolution on timeline
 1. *.NET Framework* (old Windows-only era)
 2. *.NET Core* (modern cross-platform reboot)
+    - After .NET core 3.1, Microsoft renamed everything.
 3. *Modern .NET (5/6/7/8+)* (unified platform)
+    - it's all .NET only no more =Core=
+    - Features: * LTS (Long-Term Support), Very stable, Better performance * Minimal APIs * Hot Reload * cloud improvements * Native AOT = Ahead-Of-Time compilation * Better ASP.NET * Better Blazor * Better container support * Improved MAUI * AI integrations
 
-* 1. .NET Framework
+*** differences table
+
 | Feature          | .NET Framework                                       | .NET Core / .NET                   |
 |------------------+------------------------------------------------------+------------------------------------|
-| *OS Support*     | Windows only                                         | Windows, Linux, macOS              |
+| *Cross-platform* | No, windows only                                     | Yes                                |
 | *Open Source*    | Mostly no                                            | Yes (MIT license)                  |
 | *Performance*    | Older/slower                                         | Fast, modern (optimized runtime)   |
-| *Cross-platform* | No                                                   | Yes                                |
 | *Current Status* | Legacy / maintenance, still supported but not active | Active development, future of .NET |
+| *Lightweight*    | No                                                   | Yes                                |
+| *Cloud-ready*    | No                                                   | Yes                                |
+| *Docker support* | Limited                                              | Excellent                          |
 
-** Common Technologies
-- Windows Forms , WPF = Windows Presentation Foundation , ASP.NET MVC
-  (old) , WebForms , WCF = Windows Communication Foundation
-
-* 2. .NET Core { first step into a better future }
-| Feature          | .NET Framework | .NET Core / .NET |
-|------------------+----------------+------------------|
-| *Cross-platform* | No             | Yes              |
-| *Open source*    | Mostly no      | Yes              |
-| *Fast*           | Older/slower   | Much faster      |
-| *Lightweight*    | No             | Yes              |
-| *Cloud-ready*    | No             | Yes              |
-| *Docker support* | Limited        | Excellent        |
-
-#+begin_quote
-After .NET core 3.1, Microsoft renamed everything.
-#+end_quote
-
-* 3. Modern .NET (.NET 5/6/7/8..) { a more modern continuation }
-
-#+begin_quote
-it's all .NET only no more =Core=
-#+end_quote
-
-Features: * LTS (Long-Term Support), Very stable, Better performance *
-Minimal APIs * Hot Reload * cloud improvements * Native AOT =
-Ahead-Of-Time compilation * Better ASP.NET * Better Blazor * Better
-container support * Improved MAUI * AI integrations
 
 * Famous Parts of Modern .NET
 - ASP.NET Core
@@ -70,7 +48,7 @@ compile some parts} * ahead-of-time {before the app runs you compile
 some parts} * threading
 #+end_quote
 
-* diff between .net framwork & .net core
+* more differences between .net framwork & .net core & .net
 | Criteria                                       | .NET Framework                                                                                         | .NET Core / .NET                                                                                                               |
 |------------------------------------------------+--------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------|
 | *Flow*                                         | App Code > .NET Framework class libraries (FCL/BCL) > compiler (csc) > IL > CLR > Windows machine code | App code > .NET Core base libraries (CoreFX) + NuGet packages > Roslyn compiler > IL > CoreCLR > OS proper native machine code |

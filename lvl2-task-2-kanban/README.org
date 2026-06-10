@@ -14,14 +14,13 @@ paradigms sharing a single data/service layer (~Kanban.Core~).
 
 ** Solution Structure
 
-| Project                          | Description                                    |
-|----------------------------------+------------------------------------------------|
-| Kanban.Core                      | Shared class library with models, DbContext,   |
-|                                  | services, middleware, seed data, DTOs          |
-| Kanban.Mvc                       | Pure MVC (Controllers + Views)                 |
-| Kanban.RazorPages                | Pure Razor Pages (PageModel + .cshtml)         |
-| Kanban.Mixed.Minimal             | Razor Pages UI + Minimal API endpoints         |
-| Kanban.Mixed.ApiController       | Razor Pages UI + MVC API Controllers           |
+| Project                    | Description                                                                          |
+|----------------------------+--------------------------------------------------------------------------------------|
+| Kanban.Core                | Shared class library with models, DbContext,   services, middleware, seed data, DTOs |
+| Kanban.Mvc                 | Pure MVC (Controllers + Views)                                                       |
+| Kanban.RazorPages          | Pure Razor Pages (PageModel + .cshtml)                                               |
+| Kanban.Mixed.Minimal       | Razor Pages UI + Minimal API endpoints                                               |
+| Kanban.Mixed.ApiController | Razor Pages UI + MVC API Controllers                                                 |
 
 ** Tech Stack
 
@@ -33,11 +32,11 @@ paradigms sharing a single data/service layer (~Kanban.Core~).
 
 ** Project Ports
 
-| Project                | Port |
-|------------------------+------|
-| Kanban.Mvc             | 5001 |
-| Kanban.RazorPages      | 5002 |
-| Kanban.Mixed.Minimal   | 5003 |
+| Project                    | Port |
+|----------------------------+------|
+| Kanban.Mvc                 | 5001 |
+| Kanban.RazorPages          | 5002 |
+| Kanban.Mixed.Minimal       | 5003 |
 | Kanban.Mixed.ApiController | 5004 |
 
 ** How to Use
@@ -77,12 +76,13 @@ All 4 web projects are fully implemented and runnable.
 
 *** What's implemented
 
-- Solution scaffolding (all 5 projects)
 - Kanban.Core: Models, DbContext, Services, Middleware, DbInitializer, DTOs
+
 - Kanban.Mvc: Controllers + Views + drag-drop
 - Kanban.RazorPages: PageModels + Pages + drag-drop
 - Kanban.Mixed.Minimal: Board/Card pages + Minimal API + drag-drop
 - Kanban.Mixed.ApiController: Board/Card pages + API Controller + drag-drop
+
 - Request-timing middleware in all projects
 - Seed data on first run
 - Ports 5001-5004
@@ -92,6 +92,303 @@ All 4 web projects are fully implemented and runnable.
 - Column validation fix ([ValidateNever])
 - Non-unique index on (ColumnId, Order) for conflict-free reordering
 
-*** Minor items (see bugs.org)
 
-- HTTPS redirect warning in all projects (cosmetic — no HTTPS port configured)
+* TIL
+**  MVC Architecture
+
+| Part       | Responsibility        |
+|------------+-----------------------|
+| Model      | Data + business logic |
+| View       | UI / HTML             |
+| Controller | Handles requests      |
+
+
+
+- Folder Structure:Typical ASP.NET Core MVC project:
+
+#+begin_src text
+MyApp/
+│
+├── Controllers/
+├── Models/
+├── Views/
+├── wwwroot/
+├── Program.cs
+└── appsettings.json
+#+end_src
+
+
+
+- `Views/` Contains Razor pages (=.cshtml=).
+
+- wwwroot/ for Static files: - CSS - JS - images
+    Equivalent to =public/= in other frameworks.
+
+
+
+
+**  Controllers
+Controllers handle incoming HTTP requests.
+
+#+begin_src csharp
+using Microsoft.AspNetCore.Mvc;
+
+public class HomeController : Controller
+{
+    public IActionResult Index()
+    {
+        return Content("Hello from controller");
+    }
+}
+#+end_src
+
+
+*** Common Return Types in Controllers
+| Method       | Purpose          |
+|--------------+------------------|
+| =View()=     | Render HTML page |
+| =Content()=  | Plain text       |
+| =Json()=     | JSON response    |
+| =Redirect()= | Redirect user    |
+
+
+**  Views + Razor Syntax
+
+*** Example Razor View
+
+#+begin_src html
+@model Student
+
+<h1>@Model.Name</h1>
+<p>Age: @Model.Age</p>
+#+end_src
+
+*** Print variable
+@name
+
+
+*** C# block
+#+begin_src html
+@{
+    var x = 5;
+}
+#+end_src
+
+
+*** Loops
+#+begin_src html
+@foreach (var item in items)
+{
+    <p>@item</p>
+}
+#+end_src
+
+
+**  Razor Pages vs MVC
+
+ASP.NET Core has two main styles: MVC, Razor pages
+
+| MVC                   | Razor Pages            |
+|-----------------------+------------------------|
+| Controller-centered   | Page-centered          |
+| Better for large apps | Simpler for small apps |
+| More structured       | Faster to build        |
+
+
+*** Razor Pages Example
+#+begin_src text
+Pages/
+ └── Index.cshtml
+ └── Index.cshtml.cs
+#+end_src
+
+Instead of separate controller.
+
+
+**  Middleware: the code that runs while processing the request
+
+*** Example Middleware 
+Inside =Program.cs=:
+
+#+begin_src csharp
+  app.UseRouting();
+  app.UseAuthentication();
+  app.UseAuthorization();
+#+end_src
+
+Each middleware does something.
+
+*** Common Middleware
+
+| Middleware              | Purpose          |
+|-------------------------+------------------|
+| =UseRouting()=          | URL routing      |
+| =UseStaticFiles()=      | Serve CSS/images |
+| =UseAuthentication()=   | Login system     |
+| =UseAuthorization()=    | Permissions      |
+| =UseExceptionHandler()= | Error handling   |
+
+*** others
+`dotnet watch run` Auto reloads on changes.
+
+-"Who calls controller methods?":ASP.NET routing system.
+
+
+
+** The 4 Approaches at a Glance
+All share =Kanban.Core= (models, EF DbContext, services, middleware).
+The differences are purely in the *web/presentation layer*.
+
+*** 1. Kanban.Mvc --- Pure MVC
+*Pattern:* Controllers + Views (=AddControllersWithViews()=) - URLs go
+through ={controller=Board}/{action=Index}/{id?}= -
+=BoardController.Index()= calls =return View(columns)= → resolves to
+=/Views/Board/Index.cshtml= - HTML is served via =View()=; forms post to
+controller actions; redirects via =RedirectToAction()= - PATCH drag-drop
+endpoint: *inline =app.MapPatch(...)= in Program.cs* (minimal API
+lambda)
+
+*** 2. Kanban.RazorPages --- Pure Razor Pages
+*Pattern:* PageModel + .cshtml (=AddRazorPages()=) - No controllers.
+Each =.cshtml= with =@page= is its own endpoint at its file path (e.g.,
+=/Pages/Board/Index.cshtml= → =/Board/Index=) - PageModel's
+=OnGetAsync()= populates the model, =OnPostAsync()= handles form
+submissions - PATCH drag-drop endpoint: *same inline =app.MapPatch(...)=
+in Program.cs* - Links use =asp-page="/Board/Index"= tag helpers instead
+of =asp-controller=/=asp-action=
+
+*** 3. Kanban.Mixed.Minimal --- Razor Pages UI + Minimal API
+*Pattern:* =AddRazorPages()= + *Minimal API lambdas* for data
+operations - UI is *identical* to pure Razor Pages (same PageModels,
+same =.cshtml=) - But data CRUD is exposed as a =MapGroup("/api/cards")=
+with =.MapGet()=, =.MapPost()=, =.MapPut()=, =.MapPatch()=,
+=.MapDelete()= --- all *lambda functions inlined in Program.cs* - PATCH
+is inside this group
+
+*** 4. Kanban.Mixed.ApiController --- Razor Pages UI + MVC API Controllers
+*Pattern:* =AddRazorPages()= + =AddControllers()= + =MapControllers()= -
+UI is *identical* to pure Razor Pages - Data CRUD is in a *dedicated
+=[ApiController]= class* at =/Controllers/Api/CardsController.cs= with
+=[Route("api/cards")]=, =[HttpGet]=, =[HttpPatch]=, etc. - PATCH hits
+=CardsController.Move()=
+
+--------------
+
+** Performance
+*Negligible differences* for this app. Here's why:
+
+| Concern                                | Reality                                                                                                                               |
+|----------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------|
+| *Request throughput*                   | All 4 use the same =Kanban.Core= services, same EF Core DbContext, same SQLite. The bottleneck is the database, not routing           |
+| *Memory*                               | All 4 use the same middleware pipeline. Mixed projects load both Razor Pages + either Controllers or minimal API --- trivial overhead |
+| *Startup*                              | Mixed.ApiController registers /both/ =AddRazorPages()= and =AddControllers()= --- maybe 5-10ms extra JIT, irrelevant                  |
+| *Inline lambdas vs controller classes* | Minimal API lambdas skip a reflection-based dispatch step, but the difference is microseconds                                         |
+
+*Verdict:* Pick based on code organization/team fit, not performance.
+
+--------------
+
+** Structural Differences --- Mind Model
+*** The Core Insight
+*MVC and Razor Pages solve the same problem (server-rendered HTML) with
+two different organizational philosophies:*
+
+| Concern                | MVC                                                            | Razor Pages                                        |
+|------------------------+----------------------------------------------------------------+----------------------------------------------------|
+| *Unit of organization* | Feature (Controller) groups related actions                    | Page is the unit --- one file pair per URL         |
+| *Routing*              | Centralized in =Program.cs= or =[Route]= attributes            | Convention-based from file path                    |
+| *Partial views*        | =PartialView()= or =<partial>= with explicit model             | Inline rendering or =<partial>=                    |
+| *Suitability*          | Large apps with many actions per controller                    | Small/medium apps, form-heavy pages                |
+| *Testability*          | Controllers are easy to mock                                   | PageModels are equally easy to mock                |
+| *Learning curve*       | More ceremony (Controller class, View() calls, routing config) | Less ceremony --- open a page, write =OnGet=, done |
+
+*MVC* = separate the /concerns/ (Controller handles request, View
+handles display).\\
+*Razor Pages* = colocate the /page logic/ with the /page template/ ---
+each page is self-contained.
+
+*** Then the "Mixed" Dimension
+The "Mixed" projects ask: *who handles the AJAX calls?*
+
+| Concern            | Pure MVC/RazorPages                      | Mixed.Minimal                          | Mixed.ApiController        |
+|--------------------+------------------------------------------+----------------------------------------+----------------------------|
+| *Drag-drop PATCH*  | Inline =MapPatch= in Program.cs          | In =MapGroup= lambdas                  | In =CardsController= class |
+| *Full CRUD API*    | Not exposed                              | Yes --- all 5 REST verbs               | Yes --- all 5 REST verbs   |
+| *API organization* | None (single ad-hoc endpoint)            | Grouped lambdas                        | Formal controller class    |
+| *API reusability*  | Low (hard to call from external clients) | Medium (can be called by mobile, etc.) | Medium (same)              |
+
+The *real* architectural distinction is: *are your data operations
+server-rendered form posts or client-callable REST endpoints?*
+
+- *MVC/RazorPages (pure):* Forms post to server → server renders next
+  page. The PATCH is a hack (inline minimal API).
+- *Mixed projects:* Forms still post to server (Create/Edit/Delete are
+  Razor Pages forms). But the data API exists independently. This
+  positions you to migrate to a SPA later --- the API is already there.
+
+--------------
+
+** Criteria to Pick
+| You want...                                         | Pick...                                                                                                          |
+|-----------------------------------------------------+------------------------------------------------------------------------------------------------------------------|
+| *Most familiar for .NET devs*                       | *MVC* --- it's the original, most documentation/tutorials, most blog posts                                       |
+| *Simplest, least ceremony*                          | *Razor Pages* --- no controllers, no routing config, just page files                                             |
+| *Cleanest separation for a future API consumer*     | *Mixed.ApiController* --- formal API controller with =[ApiController]= attributes, versionable, swagger-friendly |
+| *Most modern / lightweight API layer*               | *Mixed.Minimal* --- minimal API lambdas are terse, no class boilerplate, great for simple CRUD                   |
+| *Purely server-rendered app with zero JS framework* | *MVC or RazorPages* --- why ship API endpoints nobody calls?                                                     |
+| *Team of junior devs*                               | *Razor Pages* --- less to learn, less to get wrong                                                               |
+| *API will be consumed by mobile/SPA*                | *Mixed.ApiController* --- formal controllers document better with Swagger/Scalar                                 |
+| *Maximum lines of code = maximum value*             | *MVC* --- most files, most folders, most structure                                                               |
+
+--------------
+
+** Other Approaches You Didn't List
+These 4 represent *server-rendered HTML* paradigms. Here's what else
+exists in .NET:
+
+*** A. Blazor Server
+- UI runs as .NET on the server, DOM updates pushed over SignalR
+- No JavaScript needed for interactivity (drag-drop would be C# event
+  handlers)
+- Real-time, stateful, low latency
+- *Downside:* Requires persistent SignalR connection, higher server
+  memory per client
+
+*** B. Blazor WebAssembly (WASM)
+- Full SPA running .NET in the browser (compiled to WebAssembly)
+- Same Blazor component model, runs client-side
+- *Downside:* Large initial download (~2MB+), slower first load, .NET
+  debugging is harder
+
+*** C. Blazor Hybrid (MAUI)
+- Embed Blazor web UI inside a native MAUI desktop/mobile app
+- Access to native APIs (file system, notifications, etc.)
+- *Downside:* Only for desktop/mobile apps, not for web
+
+*** D. Traditional SPA + ASP.NET Core API (React, Vue, Angular)
+- Frontend entirely in JS/TS, talks to ASP.NET Core API
+- Full client-side routing, component state, rich interactivity
+- *Downside:* Two apps to build/debug/deploy, SEO concerns, bundle size
+
+*** E. ASP.NET Core + HTMX
+- Server returns HTML fragments (partials), HTMX swaps them in
+- No JS needed for dynamic behavior
+- *Downside:* Debugging is harder, complex interactions become spaghetti
+
+*** F. FastEndpoints / Ardalis.ApiEndpoints
+- Community libraries that organize endpoints as single-class handlers
+- Like Minimal API but with classes --- best of both worlds
+- Better testability than minimal API lambdas
+
+*** G. .NET Aspire
+- Cloud orchestration layer --- not a UI paradigm, but changes how you
+  /deploy/ these apps
+- Relevant if you're building distributed systems
+
+--------------
+
+*Bottom line:* For this specific app (server-rendered Kanban board with
+drag-drop), *Razor Pages* is the cleanest pick --- least ceremony, no
+unnecessary API surface. The "Mixed" projects only make sense if you
+plan to add a mobile client or SPA later. The pure MVC project is the
+"safe default" most .NET shops would reach for.
