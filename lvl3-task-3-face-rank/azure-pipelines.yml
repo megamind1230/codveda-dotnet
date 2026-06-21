@@ -1,0 +1,109 @@
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  dotnetVersion: '10.0.x'
+  azureWebAppName: 'facerank'
+  azureFunctionAppName: 'facerank-func'
+  buildConfiguration: 'Release'
+
+stages:
+  - stage: Build
+    displayName: 'Build and Publish'
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: $(dotnetVersion)
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet packages'
+            inputs:
+              command: 'restore'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build all projects'
+            inputs:
+              command: 'build'
+              arguments: '--no-restore --configuration $(buildConfiguration)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish Web App'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/FaceRank.Web/FaceRank.Web.csproj'
+              arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/web-publish'
+              zipAfterPublish: false
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish Functions App'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/FaceRank.Functions/FaceRank.Functions.csproj'
+              arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/func-publish'
+              zipAfterPublish: false
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Upload Web App artifact'
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/web-publish'
+              artifactName: 'web-publish'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Upload Functions artifact'
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/func-publish'
+              artifactName: 'func-publish'
+
+  - stage: DeployWeb
+    displayName: 'Deploy Web App to Azure App Service'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: DeployWeb
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download Web App artifact'
+            inputs:
+              artifactName: 'web-publish'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy to Azure App Service'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              appName: $(azureWebAppName)
+              package: '$(System.ArtifactsDirectory)/web-publish'
+
+  - stage: DeployFunctions
+    displayName: 'Deploy Azure Functions'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: DeployFunctions
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download Functions artifact'
+            inputs:
+              artifactName: 'func-publish'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy to Azure Functions'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              appName: $(azureFunctionAppName)
+              package: '$(System.ArtifactsDirectory)/func-publish'

@@ -1,0 +1,34 @@
+{
+  "Routes": [
+    {
+      "DownstreamPathTemplate": "/api/heroes",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/heroes",
+      "ServiceName": "hero-service",
+      "UseServiceDiscovery": true
+    },
+    {
+      "DownstreamPathTemplate": "/api/heroes/{everything}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/heroes/{everything}",
+      "ServiceName": "hero-service",
+      "UseServiceDiscovery": true
+    },
+    {
+      "DownstreamPathTemplate": "/api/matchup/{everything}",
+      "DownstreamScheme": "http",
+      "UpstreamPathTemplate": "/api/matchup/{everything}",
+      "ServiceName": "matchup-service",
+      "UseServiceDiscovery": true
+    }
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:5000",
+    "ServiceDiscoveryProvider": {
+      "Scheme": "http",
+      "Host": "localhost",
+      "Port": 8500,
+      "Type": "Consul"
+    }
+  }
+}

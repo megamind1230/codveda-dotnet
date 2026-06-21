@@ -1,7 +1,8 @@
 * Kanban App
 
-A multi-project ASP.NET Core 8.0 kanban board demonstrating four hosting
-paradigms sharing a single data/service layer (~Kanban.Core~).
+A multi-project ASP.NET Core net8.0 kanban board demonstrating four hosting
+paradigms sharing a single data/service layer (~Kanban.Core~). Built with
+.NET SDK 8.0.125 (also compatible with 10.0.109).
 
 ** Features
 
@@ -24,11 +25,12 @@ paradigms sharing a single data/service layer (~Kanban.Core~).
 
 ** Tech Stack
 
-- .NET 8.0
+- .NET 8.0 (SDK 8.0.125; all ~.csproj~ target ~net8.0~)
 - ASP.NET Core (MVC, Razor Pages, Minimal API, API Controllers)
 - Entity Framework Core 8.0.11 (SQLite)
 - Bootstrap 5 (scaffolded)
 - SortableJS 1.15.0 (CDN, all projects)
+- ~ILogger<T>~ structured logging in all services + middleware
 
 ** Project Ports
 
@@ -48,7 +50,12 @@ paradigms sharing a single data/service layer (~Kanban.Core~).
 
 2. Run a project (e.g. MVC):
    #+begin_src sh
-   dotnet run --project Kanban/Kanban.Mvc
+   dotnet run --project Kanban.Mvc
+   #+end_src
+
+   Or with a specific port:
+   #+begin_src sh
+   dotnet run --project Kanban.Mvc --urls "http://localhost:5001"
    #+end_src
 
 3. Open http://localhost:5001 (or the port for the chosen project).
@@ -69,6 +76,17 @@ All business logic lives in Kanban.Core:
 
 Each web project references Kanban.Core and registers its DbContext +
 services in Program.cs.
+
+** Logging
+
+Logs are written to the console via ~ILogger<T>~ (structured logging). A
+logs directory can be configured at ~~/magnus/kanban-logs/~ for debugging.
+
+** Known Issues
+
+- BUG 28: ~UseHttpsRedirection()~ fires "Failed to determine the https
+  port for redirect" warning in all 4 projects (cosmetic — app works over
+  HTTP). Fix: remove ~UseHttpsRedirection()~ or configure an HTTPS port.
 
 ** Completion Status
 
@@ -197,9 +215,9 @@ ASP.NET Core has two main styles: MVC, Razor pages
 
 *** Razor Pages Example
 #+begin_src text
-Pages/
- └── Index.cshtml
- └── Index.cshtml.cs
+  Pages/
+  └── Index.cshtml
+   └── Index.cshtml.cs
 #+end_src
 
 Instead of separate controller.
@@ -227,9 +245,6 @@ Each middleware does something.
 | =UseAuthentication()=   | Login system     |
 | =UseAuthorization()=    | Permissions      |
 | =UseExceptionHandler()= | Error handling   |
-
-*** others
-`dotnet watch run` Auto reloads on changes.
 
 -"Who calls controller methods?":ASP.NET routing system.
 
@@ -342,7 +357,7 @@ server-rendered form posts or client-callable REST endpoints?*
 
 --------------
 
-** Other Approaches You Didn't List
+** Other Approaches I Didn't List
 These 4 represent *server-rendered HTML* paradigms. Here's what else
 exists in .NET:
 

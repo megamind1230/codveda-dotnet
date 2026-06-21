@@ -1,0 +1,68 @@
+@page "/leaderboard/{gender}"
+@model FaceRank.Web.Pages.Leaderboard.IndexModel
+@{
+    var display = Model.Gender == "Male" ? "Men" : "Women";
+    ViewData["Title"] = $"Leaderboard - {display}";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">@display Leaderboard</h2>
+
+        <div class="btn-group mb-4" role="group">
+            <a asp-page="/Leaderboard/Index" asp-route-gender="Male" class="btn @(Model.Gender == "Male" ? "btn-primary" : "btn-outline-primary")">Men</a>
+            <a asp-page="/Leaderboard/Index" asp-route-gender="Female" class="btn @(Model.Gender == "Female" ? "btn-primary" : "btn-outline-primary")">Women</a>
+        </div>
+
+        @if (!Model.People.Any())
+        {
+            <div class="alert alert-info">No contestants yet. <a asp-page="/Add">Be the first!</a></div>
+        }
+        else
+        {
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Avatar</th>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Elo</th>
+                        <th>Votes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Model.People.Count; i++)
+                    {
+                        var p = Model.People[i];
+                        var rank = i + 1;
+                        <tr>
+                            <td class="fw-bold fs-5">
+                                @if (rank == 1) { <span>🥇</span> }
+                                else if (rank == 2) { <span>🥈</span> }
+                                else if (rank == 3) { <span>🥉</span> }
+                                else { @rank }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(p.AvatarUrl))
+                                {
+                                    <img src="@p.AvatarUrl" class="rounded-circle" style="width: 48px; height: 48px; object-fit: cover;" alt="@p.Name" />
+                                }
+                                else
+                                {
+                                    <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center text-white" style="width: 48px; height: 48px;">@p.Name[0]</div>
+                                }
+                            </td>
+                            <td class="fw-semibold">@p.Name</td>
+                            <td class="text-muted small">@(p.ContactInfo ?? "-")</td>
+                            <td class="fw-bold">@p.EloRating</td>
+                            <td>@p.VotesCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <a asp-page="/Vote/Index" asp-route-gender="@Model.Gender" class="btn btn-primary mt-2">Vote</a>
+    </div>
+</div>

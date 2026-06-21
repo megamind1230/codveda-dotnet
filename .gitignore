@@ -12,4 +12,5 @@ Thumbs.db
 *.pdf
 # debugging + logging
 **/*.log
+**/linkedin.txt
 *.png

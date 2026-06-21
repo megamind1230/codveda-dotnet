@@ -1,0 +1,102 @@
+@page "/"
+@using DotaLane.Frontend.Models
+@inject ApiService Api
+<PageTitle>DotaLane — Matchup Analyzer</PageTitle>
+
+@if (_loading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading heroes...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <p class="error">Error: @_error</p>
+}
+else
+{
+    <div class="hero-count">@_heroes.Count heroes loaded</div>
+
+    <div class="card">
+        <HeroSelect Heroes="@_heroes"
+                    @bind-SelectedLane="@_lane"
+                    @bind-SelectedYourHeroId="@_yourHeroId"
+                    @bind-SelectedEnemyHeroId="@_enemyHeroId" />
+
+        <button class="analyze-btn" disabled="@(!CanAnalyze)" @onclick="AnalyzeMatchup">
+            Analyze Matchup
+        </button>
+    </div>
+
+    @if (_matchupLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Analyzing matchup...</p>
+        </div>
+    }
+    else if (_matchupResult is not null)
+    {
+        <AdviceResult Verdict="@_matchupResult.Verdict"
+                      Reason="@_matchupResult.AdviceReason"
+                      Advantages="@_matchupResult.Advantages"
+                      Disadvantages="@_matchupResult.Disadvantages" />
+
+        <MatchupDisplay YourHeroName="@_matchupResult.YourHeroName"
+                        EnemyHeroName="@_matchupResult.EnemyHeroName"
+                        Stats="@_matchupResult.Stats" />
+    }
+}
+
+@code {
+    private List<HeroDto> _heroes = new();
+    private string _lane = "mid";
+    private string _yourHeroId = "";
+    private string _enemyHeroId = "";
+    private bool _loading = true;
+    private bool _matchupLoading;
+    private string? _error;
+    private MatchupResponse? _matchupResult;
+
+    private bool CanAnalyze =>
+        !string.IsNullOrEmpty(_yourHeroId) &&
+        !string.IsNullOrEmpty(_enemyHeroId) &&
+        _yourHeroId != _enemyHeroId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _heroes = await Api.GetHeroesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AnalyzeMatchup()
+    {
+        _matchupLoading = true;
+        _matchupResult = null;
+        try
+        {
+            var yourId = int.Parse(_yourHeroId);
+            var enemyId = int.Parse(_enemyHeroId);
+            _matchupResult = await Api.GetMatchupAsync(yourId, enemyId, _lane);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _matchupLoading = false;
+        }
+    }
+}

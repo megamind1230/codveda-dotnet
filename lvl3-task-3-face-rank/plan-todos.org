@@ -1,0 +1,151 @@
+* FaceRank — Development Plan
+
+** Goal
+Build a cloud-integrated Elo-based "Hot or Not" voting web app (inspired
+by FaceMash from The Social Network), covering all 4 Azure objectives:
+App Services, Blob Storage, Functions, CI/CD.
+
+** Constraints
+- .NET 10.0, Razor Pages, SQLite (local), Azure Blob (prod)
+- Gender-separated vote pages and leaderboards
+- Seed data of 20 celebrities for demo
+
+** Phase 1 — Scaffold & Domain Model
+
+*** 1.1 Create solution
+- [x] ~dotnet new slnx~ → ~FaceRank.slnx~
+- [x] Create 3 projects:
+  - ~src/FaceRank.Core~ (classlib, shared domain)
+  - ~src/FaceRank.Web~ (razorpages, web frontend)
+  - ~src/FaceRank.Functions~ (azure functions)
+
+*** 1.2 Core models
+- [x] ~Models/Person.cs~: Id, Name, Gender, ContactInfo, AvatarUrl,
+  EloRating (default 1400), VotesCount, CreatedAt
+- [x] ~Models/Vote.cs~: Id, WinnerId, LoserId, VoterIp, CreatedAt,
+  Winner + Loser nav props
+
+*** 1.3 Elo rating service
+- [x] ~Services/EloService.cs~: static Calculate() with K=32,
+  400-point divisor
+  - #baka: expected = 1 / (1 + 10^((opponent - player) / 400))
+    standard Elo formula; 400 scales chess ratings
+
+*** 1.4 EF Core DbContext
+- [x] ~Data/FaceRankDbContext.cs~: DbSet<Person>, DbSet<Vote>,
+  indexes on Gender + EloRating, Vote FK config with NoAction delete
+
+** Phase 2 — Razor Pages Web App
+
+*** 2.1 Startup & DI
+- [x] ~Program.cs~: AddRazorPages(), SQLite via EF Core,
+  BlobStorageService singleton, db auto-create, ~--seed~ flag
+
+*** 2.2 Layout & navigation
+- [x] ~Pages/Shared/_Layout.cshtml~: Bootstrap 5 dark navbar,
+  dropdowns for Vote (Men/Women) and Leaderboard (Men/Women)
+
+*** 2.3 Home page
+- [x] ~Pages/Index.cshtml~: 3-card layout (Add Yourself, Vote,
+  Leaderboard), live counts from DB
+
+*** 2.4 Add yourself (sign-up form)
+- [x] ~Pages/Add.cshtml~ + ~Add.cshtml.cs~: Name, Gender dropdown,
+  Contact (optional), Photo upload (file input)
+- [x] Saves to DB with ~EloRating=1400~, uploads avatar via
+  BlobStorageService (Azure if configured, else local ~wwwroot/uploads/~)
+
+*** 2.5 Vote page
+- [x] ~Pages/Vote/Index.cshtml~: route ~/vote/{gender}~
+- [x] Picks 2 random people of that gender, shows cards with
+  photo + name + Elo + "Pick" button
+- [x] On POST: calculates new Elo, records vote, redirects back
+  with fresh pair of contestants
+
+*** 2.6 Leaderboard page
+- [x] ~Pages/Leaderboard/Index.cshtml~: route ~/leaderboard/{gender}~
+- [x] Table: rank (🥇🥇🥉 for top 3), avatar, name, contact, Elo,
+  votes; toggle Men/Women via button group
+
+*** 2.7 Seed page
+- [x] ~Pages/Seed.cshtml~: One-click seed button, shows status,
+  prevents double-seeding
+
+*** 2.8 Error page
+- [x] ~Pages/Error.cshtml~: Generic error page with request ID
+
+** Phase 3 — Azure Blob Storage (avatar uploads)
+
+*** 3.1 BlobStorageService
+- [x] ~Services/BlobStorageService.cs~: Singleton, reads conn string
+  from config or env var ~AZURE_STORAGE_CONNECTION_STRING~
+- [x] Azure branch: ~BlobContainerClient~ -> upload -> return URI
+- [x] Fallback branch: save to ~wwwroot/uploads/~ locally
+- [x] ~DeleteAsync()~ for both paths
+
+** Phase 4 — Azure Functions
+
+*** 4.1 ProcessVote (HTTP trigger)
+- [x] ~ProcessVoteFunction.cs~: POST with ~winnerRating~ +
+  ~loserRating~, returns new ratings and deltas
+- [x] Uses ~EloService.Calculate()~
+
+*** 4.2 LeaderboardSnapshot (timer trigger)
+- [x] ~LeaderboardSnapshotFunction.cs~: Daily at midnight,
+  queries top Male and Female by Elo, logs snapshot
+
+** Phase 5 — Infrastructure & CI/CD
+
+*** 5.1 Bicep template
+- [x] ~azure/main.bicep~: Storage Account + Blob container "avatars",
+  App Service Plan (Free F1) + Web App, Functions App
+- [x] App settings wired to storage keys
+
+*** 5.2 CI/CD pipeline
+- [x] ~.github/workflows/deploy.yml~: GitHub Actions — build, test,
+  deploy Web App + Functions
+
+** Phase 6 — Polish & Fixes
+
+*** 6.1 BlobStorageService local fallback
+- [x] Added ~_useAzure~ flag: if no Azure conn string or
+  "UseDevelopmentStorage=true", store locally under ~wwwroot/uploads/~
+
+*** 6.2 Bare route redirects
+- [x] ~/vote~ redirects → ~/vote/Male~
+- [x] ~/leaderboard~ redirects → ~/leaderboard/Male~
+
+*** 6.3 Case-insensitive gender matching
+- [x] Use ~StringComparison.OrdinalIgnoreCase~ in Vote + Leaderboard
+  page models so ~/vote/male~ and ~/vote/Male~ both work
+
+*** 6.4 Page titles & headings
+- [x] Updated Razor pages to show "Men"/"Women" instead of "Males"/"Females"
+  via ~var display = Model.Gender == "Male" ? "Men" : "Women";~
+
+*** 6.5 Duplicate / rapid-vote prevention
+- [ ] Consider session cookie or IP rate limit per time window
+
+*** 6.6 Unused using cleanup
+- [ ] Remove ~using Microsoft.Extensions.FileProviders;~ from BlobStorageService
+
+*** 6.7 Azure production check for blob storage
+- [ ] Use ~env.IsProduction()~ instead of hardcoded string comparison
+
+*** 6.8 Error handling for blob upload
+- [ ] Add try/catch with retry or local fallback on Azure failure
+
+*** 6.9 Seed page reset button
+- [ ] Add "Reset & Re-seed" that clears DB and re-runs seeding
+
+*** 6.10 SQLitePCLRaw vulnerability
+- [ ] Bump SQLitePCLRaw.lib.e_sqlite3 or EF Core SQLite package
+
+*** 6.11 Login page
+- [ ] Create ~/Login page or remove dead links from Add.cshtml
+
+** Quick Start
+#+BEGIN_SRC sh
+cd src/FaceRank.Web && dotnet run -- --seed
+#+END_SRC
+Open http://localhost:5153

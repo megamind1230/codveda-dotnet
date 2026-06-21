@@ -1,0 +1,300 @@
+* ncdu-clone-dotnet
+
+A .NET 10.0 console app (targeting =net10.0=) that recursively calculates
+directory sizes using asynchronous programming and multithreading. Inspired by
+=ncdu= (NCurses Disk Usage).
+
+Built with SDK 10.0.109, runs on ASP.NET Core Runtime 10.0.9.
+
+** Features
+   - Recursive directory tree size calculation
+   - Concurrent scanning via =Task.WhenAll= (fan-out per subdirectory)
+   - =Parallel.ForEach= for file size accumulation within each directory
+   - Inline progress bar with path, file/dir counts, and size
+   - Top-N largest files listing
+   - Human-readable (KB/MB/GB) or raw byte output
+   - Ctrl+C cancellation
+   - =--exclude= glob pattern to skip matching files/directories
+   - =--min-size= to filter out files smaller than a threshold (supports K/M/G suffixes)
+   - Error resilience (permission-denied dirs are skipped)
+   - Full logging to =~/magnus/ncdu-clone-dotnet/logs/=
+
+** Tech stack
+   - .NET 10.0 (console app, =net10.0=)
+   - =async/await= for non-blocking orchestration
+   - Task Parallel Library (=Task.WhenAll=, =Parallel.ForEach=)
+   - =Interlocked.Add= / =lock= for thread-safe state
+   - =IProgress<T>= for progress reporting (modern =BackgroundWorker= equivalent)
+   - =CancellationToken= for cooperative cancellation
+
+** Project structure
+
+   └── lvl3-task-2-ncdu-clone-dotnet/
+       ├── README.org                     # this file
+       ├── plan-todos.org                 # build plan
+       ├── bugs.org                       # known issues
+       └── ncduCloneDotnet/
+           ├── ncdu-clone-dotnet.csproj   # net10.0
+           ├── Program.cs                 # Entry, CLI parsing, orchestration
+           ├── Services/
+           │   ├── DirectoryScanner.cs    # core async/parallel scanning logic
+           │   └── LogService.cs          # file logger + stderr passthrough
+           └── Models/
+               ├── FileEntry.cs           # tree node: file or directory
+               └── ScanProgress.cs        # IProgress<T> progress payload
+
+** Usage
+
+   # run with defaults (current dir, depth 10, top 10, human)
+   dotnet run
+
+   # scan a specific path
+   dotnet run -- --source /path/to/scan
+
+   # limit recursion depth, show top 5 files
+   dotnet run -- --source /path --max-depth 3 --top 5
+
+   # exclude files/dirs matching a glob pattern (e.g. node_modules, .git)
+   dotnet run -- --source /path --exclude "node_modules"
+
+   # ignore files smaller than 1 MB
+   dotnet run -- --source /path --min-size 1M
+
+   # combined: exclude .git, ignore files under 100 KB, max depth 5
+   dotnet run -- --source /path --max-depth 5 --exclude ".git" --min-size 100K
+
+** How objectives are met
+
+   | Concept          | Implementation                                                                   |
+   |------------------+----------------------------------------------------------------------------------|
+   | async/await      | =DirectoryScanner.ScanAsync()= uses =await Task.WhenAll=, =await Task.Run=       |
+   | TPL              | =Task.WhenAll= (subdir fan-out), =Parallel.ForEach= (file stats)                 |
+   | ThreadPool       | =Task.Run= and =Parallel.ForEach= both draw from ThreadPool                      |
+   | BackgroundWorker | =IProgress<T> / Progress<T>= — the modern, simpler equivalent                    |
+   | Race conditions  | Demo in DEBUG showing plain =+= vs =Interlocked.Add=; scanner uses =Interlocked= |
+   | Deadlocks        | Commented-out demo showing =.Result= deadlock; production code uses =await= all- |
+   |                  | the-way + =ConfigureAwait(false)=                                                |
+
+* TIL
+
+** Async / Sync / Await
+
+Imagine you are baking cookies.
+
+- **Sync** (synchronous) means you do everything one step at a time, and you wait
+  for each step to finish before starting the next. You put the cookies in the
+  oven, then you stand there staring at the oven doing nothing until they are
+  done. You can't do anything else while you wait. In code, a synchronous
+  method blocks the current thread until the work finishes.
+
+  #+BEGIN_SRC csharp
+  // Sync — blocks the thread until the file is read
+  string text = File.ReadAllText("file.txt");
+  Console.WriteLine(text); // only runs after the file is fully read
+  #+END_SRC
+
+- **Async** (asynchronous) means you start the oven timer and go do other
+  things while the cookies bake. When the timer rings, you come back and take
+  them out. You got other chores done in the meantime. In code, an async method
+  returns control to the caller immediately, and the work happens in the
+  background.
+
+  #+BEGIN_SRC csharp
+  // Async — does NOT block the thread
+  async Task<string> ReadFileAsync(string path)
+  {
+      string text = await File.ReadAllTextAsync(path);
+      return text;
+  }
+  #+END_SRC
+
+- **Await** is the "timer ringing". It says: "I am going to start this work,
+  then go do something else. When the work finishes, come back here and
+  continue." If the work is already done by the time you await, execution
+  continues immediately.
+
+  #+BEGIN_SRC csharp
+  async Task MakeCookiesAsync()
+  {
+      Console.WriteLine("Preheating oven...");
+      Task baking = OvenBakeAsync();      // start baking, don't wait yet
+      Console.WriteLine("Cleaning up..."); // do other stuff while it bakes
+      await baking;                       // wait here if it's not done yet
+      Console.WriteLine("Cookies are ready!");
+  }
+  #+END_SRC
+
+  The magic is that =await= does not block a thread — it returns to the caller
+  and schedules a continuation when the task completes.
+
+** TPL (Task Parallel Library)
+
+TPL is a box of Lego blocks that helps you build things that run at the same
+time. Instead of building one tower brick-by-brick (sync), you hand different
+bricks to different friends and they all build towers at the same time.
+
+The two most important pieces in .NET's TPL are:
+
+1. **=Task=** — a unit of work that may or may not be done yet. =Task.WhenAll=
+   lets you start many tasks at once and wait for all of them.
+
+   #+BEGIN_SRC csharp
+   Task t1 = ScanDirectoryAsync("folderA");
+   Task t2 = ScanDirectoryAsync("folderB");
+   Task t3 = ScanDirectoryAsync("folderC");
+   await Task.WhenAll(t1, t2, t3); // all three run concurrently
+   #+END_SRC
+
+2. **=Parallel=** — a helper that runs a loop across multiple threads
+   automatically. =Parallel.ForEach= splits a collection into chunks and
+   processes them in parallel.
+
+   #+BEGIN_SRC csharp
+   long totalSize = 0;
+   Parallel.ForEach(files, file =>
+   {
+       // This loop body runs on multiple threads at once
+       Interlocked.Add(ref totalSize, file.Length);
+   });
+   #+END_SRC
+
+** ThreadPool
+
+The ThreadPool is like a taxi stand. Instead of buying your own car (creating
+a thread) every time you need to go somewhere, you grab a taxi from the stand.
+When you're done, the taxi goes back to the stand so someone else can use it.
+
+Creating a brand-new thread is expensive (buying a car). The ThreadPool keeps
+a bunch of threads ready to go, so you can start work immediately without the
+overhead. Both =Task.Run= and =Parallel.ForEach= use the ThreadPool under the
+hood.
+
+#+BEGIN_SRC csharp
+// Task.Run borrows a thread from the ThreadPool
+await Task.Run(() => DoHeavyWork());
+
+// Parallel.ForEach also draws threads from the ThreadPool
+Parallel.ForEach(data, item => Process(item));
+#+END_SRC
+
+If all threads in the pool are busy and more work arrives, the ThreadPool may
+add more threads (up to a limit) or queue the work until a thread is free.
+
+** BackgroundWorker
+
+BackgroundWorker is the old way (pre-.NET 4.0) to run work on another thread
+and get progress updates back to the UI. It is like having a helper in the
+kitchen: you tell them "peel these potatoes" (start work), they do it in the
+background, and every few seconds they hold up a sign saying "50% done"
+(=ReportProgress=). When they finish, they ring a bell (=RunWorkerCompleted=).
+
+Modern .NET code uses =IProgress<T>= and =Progress<T>= instead — they do the
+same thing but are simpler and work better with =async/await=.
+
+Old way (BackgroundWorker):
+#+BEGIN_SRC csharp
+var worker = new BackgroundWorker();
+worker.WorkerReportsProgress = true;
+worker.DoWork += (s, e) =>
+{
+    for (int i = 0; i < 100; i++)
+    {
+        Thread.Sleep(100);        // simulate work
+        worker.ReportProgress(i); // "I'm {i}% done, boss!"
+    }
+};
+worker.ProgressChanged += (s, e) => Console.WriteLine($"{e.ProgressPercentage}%");
+worker.RunWorkerAsync();
+#+END_SRC
+
+New way (IProgress<T>):
+#+BEGIN_SRC csharp
+var progress = new Progress<int>(p => Console.WriteLine($"{p}%"));
+await Task.Run(() =>
+{
+    for (int i = 0; i < 100; i++)
+    {
+        Thread.Sleep(100);
+        ((IProgress<int>)progress).Report(i);
+    }
+});
+#+END_SRC
+
+** Race Conditions
+
+A race condition is when two kids try to colour the same picture at the same
+time. One colours the sky red, the other colours it blue. Whoever scribbles
+last wins — but the result is unpredictable, and most likely the picture is a
+mess.
+
+In code, this happens when two threads read and write the same variable without
+coordination:
+
+#+BEGIN_SRC csharp
+long counter = 0;
+
+// Two threads run this at the same time:
+counter = counter + 1;
+#+END_SRC
+
+Thread A reads =counter= (0), and before Thread A writes back (1), Thread B
+also reads =counter= (still 0) and writes back (1). Two increments, but the
+result is 1, not 2. Both threads "raced" to read the same value.
+
+The fix is =Interlocked.Add= or =lock= — a rule that says "only one person may
+touch the counter at a time":
+
+#+BEGIN_SRC csharp
+long counter = 0;
+Interlocked.Add(ref counter, 1); // atomic: read-add-write in one step
+#+END_SRC
+
+With =lock=:
+#+BEGIN_SRC csharp
+private readonly object _lock = new();
+long counter = 0;
+
+lock (_lock)
+{
+    counter = counter + 1; // only one thread at a time in here
+}
+#+END_SRC
+
+** Deadlock
+
+A deadlock is when two people are trying to give each other a high-five, but
+each one refuses to lower their hand until the other person lowers theirs
+first. They both get stuck forever.
+
+In .NET, a classic deadlock happens when you use =.Result= or =.Wait()= on a
+=Task= from a thread that is blocked waiting for that task to finish — but the
+task itself needs that same thread to continue. They are both waiting on each
+other.
+
+#+BEGIN_SRC csharp
+// DON'T DO THIS — deadlock!
+public string GetData()
+{
+    // This blocks the current thread waiting for DoSomethingAsync
+    return DoSomethingAsync().Result; // BAD — deadlock!
+}
+
+private async Task<string> DoSomethingAsync()
+{
+    await Task.Delay(100);
+    return "hello";
+}
+#+END_SRC
+
+The fix is to never block on async code — use =await= all the way up:
+
+#+BEGIN_SRC csharp
+public async Task<string> GetDataAsync()
+{
+    return await DoSomethingAsync(); // OK — no blocking
+}
+#+END_SRC
+
+In the project, =ConfigureAwait(false)= also helps because it tells the
+continuation: "don't come back to the original context — any free thread will
+do", which avoids situations where a thread is waiting on itself.

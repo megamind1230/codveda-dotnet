@@ -1,0 +1,86 @@
+* FaceRank — Bugs & Issues
+
+** 1. [CLEANUP] Unused using in BlobStorageService
+
+- *Where*: ~src/FaceRank.Web/Services/BlobStorageService.cs:2~
+- *What*: ~using Microsoft.Extensions.FileProviders;~ is imported but
+  never used
+- *Why*: Leftover from initial scaffolding
+- *Fix*: Remove the unused import line
+
+** 2. [FRAGILE] _useAzure flag hardcodes dev storage string
+
+- *Where*: ~src/FaceRank.Web/Services/BlobStorageService.cs:18~
+- *What*:
+  #+BEGIN_SRC csharp
+  _useAzure = !string.IsNullOrEmpty(connString) && connString != "UseDevelopmentStorage=true";
+  #+END_SRC
+- *Why*: If someone runs Azurite with a custom connection string
+  (e.g. ~AccountName=devstoreaccount1~), the fallback-to-local logic
+  would incorrectly try Azure
+- *Fix*: Check environment instead — only use Azure in Production:
+  #+BEGIN_SRC csharp
+  _useAzure = env.IsProduction() && !string.IsNullOrEmpty(connString);
+  #+END_SRC
+
+** 3. [HARDENING] No error handling for blob upload
+
+- *Where*: ~src/FaceRank.Web/Services/BlobStorageService.cs:29-33~
+- *What*: Azure upload throws on network failure; no retry or
+  graceful degradation
+- *Why*: Caller (Add page model) does not wrap in try/catch
+- *Fix*: Add try/catch with retry (e.g. ~Polly~ or manual 3 attempts)
+  or fallback to local when Azure fails
+
+** 4. [HARDENING] No duplicate vote prevention
+
+- *Where*: ~src/FaceRank.Web/Pages/Vote/Index.cshtml.cs:43-48~
+- *What*: Same browser can vote repeatedly with no restriction
+- *Why*: No rate limit, no session check, no IP cooldown
+- *Fix*: Options:
+  a) Store last vote timestamp in session — block if < 3 seconds
+  b) Add IP + time window check in DB before saving
+  c) Per-voter cookie with last vote timestamp
+
+** 5. [HARDENING] Seed page lacks reset functionality
+
+- *Where*: ~src/FaceRank.Web/Pages/Seed.cshtml~
+- *What*: Already-seeded DB shows message but no button to clear + re-seed
+- *Why*: Users may want to reset demo data
+- *Fix*: Add a "Reset & Re-seed" button that deletes all People/Votes
+  and re-runs seeding
+
+** 6. [SECURITY] SQLitePCLRaw.lib.e_sqlite3 vulnerability
+
+- *Where*: Transitive dependency via ~Microsoft.EntityFrameworkCore.Sqlite~ 10.0.4
+- *What*: NU1903 — ~SQLitePCLRaw.lib.e_sqlite3~ 2.1.11 has a known
+  high severity vulnerability (GHSA-2m69-gcr7-jv3q)
+- *Fix*: Bump ~Microsoft.EntityFrameworkCore.Sqlite~ to a newer patch
+  or force a newer ~SQLitePCLRaw.lib.e_sqlite3~ via direct package ref
+
+** 7. [MISSING] ~/Login page referenced but not created
+
+- *Where*: ~src/FaceRank.Web/Pages/Add.cshtml:14,46~
+- *What*: "Login Now" and "Already have an account? Login" links point
+  to ~/Login~ but no Login page exists
+- *Why*: Login/authentication was planned but not implemented
+- *Fix*: Either create a Login page or remove the links
+
+** [FIXED] ~~ 1. Page titles show "Males" / "Females"
+
+- *Where*: ~src/FaceRank.Web/Pages/Vote/Index.cshtml~ and
+  ~src/FaceRank.Web/Pages/Leaderboard/Index.cshtml~
+- *Status*: FIXED — both pages now use ~var display = Model.Gender == "Male" ? "Men" : "Women";~
+  and render "Vote - Men" / "Vote - Women" / "Men Leaderboard" / "Women Leaderboard"
+
+** [FIXED] ~~ 2. deploy.yml referenced in README but absent
+
+- *Status*: FIXED — ~.github/workflows/deploy.yml~ exists with a full
+  build + deploy pipeline for Web App and Functions
+
+** [NOT A BUG] ~~ 8. Vote page "success" banner replaces voting UI
+
+- *Status*: The code does NOT show a "Vote recorded!" banner. After
+  voting, ~OnPostAsync~ redirects to ~RedirectToPage(new { gender })~,
+  which loads a fresh pair of contestants immediately. This is
+  desirable behavior, not a bug.

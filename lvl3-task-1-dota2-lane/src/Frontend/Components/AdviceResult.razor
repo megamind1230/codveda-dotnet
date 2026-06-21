@@ -1,0 +1,69 @@
+@using DotaLane.Frontend.Models
+
+@if (!string.IsNullOrEmpty(Verdict))
+{
+    <div class="advice-card">
+        <div class="verdict-banner @GetBannerClass()">
+            <span class="verdict-icon">@GetIcon()</span>
+            <span class="verdict-label">@GetVerdictLabel()</span>
+            <p class="verdict-reason">@Reason</p>
+        </div>
+        <div class="advice-body">
+            @if (Advantages is { Count: > 0 })
+            {
+                <div class="advice-col adv-col-you">
+                    <h4>Advantages</h4>
+                    <ul>
+                        @foreach (var adv in Advantages)
+                        {
+                            <li>@adv</li>
+                        }
+                    </ul>
+                </div>
+            }
+            @if (Disadvantages is { Count: > 0 })
+            {
+                <div class="advice-col adv-col-enemy">
+                    <h4>Disadvantages</h4>
+                    <ul>
+                        @foreach (var dis in Disadvantages)
+                        {
+                            <li>@dis</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Verdict { get; set; } = "";
+    [Parameter] public string Reason { get; set; } = "";
+    [Parameter] public List<string> Advantages { get; set; } = new();
+    [Parameter] public List<string> Disadvantages { get; set; } = new();
+
+    private string GetBannerClass() => Verdict switch
+    {
+        "stomp" => "banner-stomp",
+        "survive" => "banner-survive",
+        "avoid" => "banner-avoid",
+        _ => ""
+    };
+
+    private string GetIcon() => Verdict switch
+    {
+        "stomp" => "🏆",
+        "survive" => "⚠",
+        "avoid" => "☠",
+        _ => "?"
+    };
+
+    private string GetVerdictLabel() => Verdict switch
+    {
+        "stomp" => "Stomp — You dominate this lane!",
+        "survive" => "Survive — Play safe, it's even.",
+        "avoid" => "Avoid — This lane is dangerous!",
+        _ => Verdict
+    };
+}

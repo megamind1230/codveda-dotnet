@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advice-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: advice-service
+  template:
+    metadata:
+      labels:
+        app: advice-service
+    spec:
+      containers:
+        - name: advice-service
+          image: dotalane/advice-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5003
+            - containerPort: 5005
+          envFrom:
+            - configMapRef:
+                name: dotalane-config
+          env:
+            - name: ADVERTISE_HOST
+              value: "advice-service"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Kubernetes"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: advice-service
+spec:
+  selector:
+    app: advice-service
+  ports:
+    - name: grpc
+      port: 5003
+      targetPort: 5003
+    - name: health
+      port: 5005
+      targetPort: 5005

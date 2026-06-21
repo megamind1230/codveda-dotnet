@@ -1,0 +1,31 @@
+@page
+@model FaceRank.Web.Pages.SeedModel
+@{
+    ViewData["Title"] = "Seed Data";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center">
+        @if (Model.AlreadySeeded)
+        {
+            <div class="alert alert-info">Database already has people.</div>
+            <p>Total: <strong>@Model.TotalPeople</strong> people, <strong>@Model.TotalVotes</strong> votes</p>
+            <form method="post" asp-page-handler="Reset">
+                <button type="submit" class="btn btn-danger btn-lg">Reset &amp; Re-seed</button>
+            </form>
+        }
+        else if (Model.Done)
+        {
+            <div class="alert alert-success">Seeded <strong>@Model.TotalPeople</strong> people and generated <strong>@Model.TotalVotes</strong> practice votes!</div>
+            <a href="/" class="btn btn-primary mt-3">Go Home</a>
+        }
+        else
+        {
+            <h2>Seed Database</h2>
+            <p>This will populate the database with 20 celebrities and 40 practice votes.</p>
+            <form method="post">
+                <button type="submit" class="btn btn-warning btn-lg">Seed Now</button>
+            </form>
+        }
+    </div>
+</div>

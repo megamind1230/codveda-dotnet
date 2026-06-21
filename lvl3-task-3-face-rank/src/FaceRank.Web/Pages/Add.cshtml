@@ -1,0 +1,53 @@
+@page
+@model AddModel
+@{
+    ViewData["Title"] = "Add Yourself";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4">Add Yourself to FaceRank</h2>
+
+        @if (Model.SuccessMessage != null)
+        {
+            <div class="alert alert-success">@Model.SuccessMessage</div>
+            <a asp-page="/Index" class="btn btn-success w-100 mb-4">Go Home</a>
+        }
+
+        <form method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+            <div class="mb-3">
+                <label asp-for="Input.Name" class="form-label">Name</label>
+                <input asp-for="Input.Name" class="form-control" required />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.Gender" class="form-label">Gender</label>
+                <select asp-for="Input.Gender" class="form-select" required>
+                    <option value="">-- Select --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
+                <span asp-validation-for="Input.Gender" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.ContactInfo" class="form-label">Contact (optional)</label>
+                <input asp-for="Input.ContactInfo" class="form-control" placeholder="Instagram, Twitter, email..." />
+            </div>
+            <div class="mb-3">
+                <label asp-for="Input.Avatar" class="form-label">Photo</label>
+                <input asp-for="Input.Avatar" class="form-control" type="file" accept="image/*" required />
+                <span asp-validation-for="Input.Avatar" class="text-danger"></span>
+                <div class="form-text">Upload a clear photo of yourself.</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Join FaceRank</button>
+        </form>
+        <div class="text-center mt-3">
+            <a asp-page="/Index" class="btn btn-outline-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

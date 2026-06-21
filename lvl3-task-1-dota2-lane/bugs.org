@@ -1,0 +1,77 @@
+* DotaLane — Bug Tracker
+:PROPERTIES:
+:UPDATED: 2026-06-21
+:END:
+
+** Format
+
+- [ ] #BUG-XXX Description
+  - *Severity*: high / medium / low
+  - *Status*: open / fixed / wontfix
+  - *Found in*: service/component
+  - *Root cause*:
+  - *Fix*:
+
+** Open
+
+- [ ] #BUG-005 Gateway returns 500 on all routes when Consul isn't running
+  - *Severity*: high
+  - *Status*: open
+  - *Found in*: ApiGateway (Ocelot)
+  - *Root cause*: ~ocelot.json~ uses ~UseServiceDiscovery: true~ with ~Type: Consul~.
+    When Consul is not running, Ocelot cannot resolve ~ServiceName~ to downstream
+    URLs and returns HTTP 500 on every proxied route.
+  - *Repro*: Start all services but not Consul. The /healthz endpoint works
+    (bypasses Ocelot), but /api/heroes and /api/matchup/* return 500.
+  - *Fix*: Added ~ocelot.Development.json~ with direct ~DownstreamHostAndPorts~
+    for local development. When ~ASPNETCORE_ENVIRONMENT=Development~ (default),
+    the Gateway skips Consul and routes directly. To use Consul, set
+    ~ASPNETCORE_ENVIRONMENT=Docker~.
+
+- [ ] #BUG-006 Cannot restart services when running as root (port conflict)
+  - *Severity*: low
+  - *Status*: open
+  - *Found in*: All services
+  - *Root cause*: If services were started via ~sudo~ or by a root-owned process,
+    the ~dt~ user cannot ~fuser -k~ the ports. ~setup.sh stop~ also fails silently.
+  - *Fix*: Run ~pkill -f "DotaLane"~ as root, or use ~docker compose down~ if
+    deployed that way.
+
+** Fixed
+
+- [x] #BUG-001 Ocelot missing /api/heroes route (no trailing segment)
+  - *Severity*: high
+  - *Status*: fixed
+  - *Found in*: ApiGateway
+  - *Root cause*: Ocelot {everything} placeholder requires at least one uri segment.
+    /api/heroes (without a sub-path) never matched.
+  - *Fix*: Added a separate route with DownstreamPathTemplate "/api/heroes" and
+    UpstreamPathTemplate "/api/heroes" (no {everything}).
+
+- [x] #BUG-002 MatchupService _httpClient used after switching to IHttpClientFactory
+  - *Severity*: high
+  - *Status*: fixed
+  - *Found in*: MatchupService
+  - *Root cause*: Program.cs was updated to register IHttpClientFactory but
+    MatchupServiceImpl.FetchHeroAsync and MatchupController.FetchHeroAsync
+    still referenced the old _httpClient field.
+  - *Fix*: Replaced _httpClient with _httpClientFactory.CreateClient("HeroService")
+    in both files; removed direct HttpClient constructor injection.
+
+- [x] #BUG-003 ApiGateway missing Ocelot.DependencyInjection using directive
+  - *Severity*: high
+  - *Status*: fixed
+  - *Found in*: ApiGateway
+  - *Root cause*: Program.cs had `using Ocelot.Middleware` but not
+    `using Ocelot.DependencyInjection`, so `AddOcelot()` extension was not found.
+  - *Fix*: Added `using Ocelot.DependencyInjection`.
+
+- [x] #BUG-004 AttackSpeed vs BaseAttackTime naming mismatch
+  - *Severity*: medium
+  - *Status*: fixed
+  - *Found in*: All services
+  - *Root cause*: Early code used "AttackSpeed" for the base attack time stat,
+    which is misleading (BAT = seconds per attack, lower is better; Attack
+    Speed in Dota is a derived stat).
+  - *Fix*: Renamed to BaseAttackTime across DB schema, Hero model, HeroDto,
+    advice.proto, matchup.proto, and all references.

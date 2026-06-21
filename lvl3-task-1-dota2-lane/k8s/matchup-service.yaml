@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchup-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matchup-service
+  template:
+    metadata:
+      labels:
+        app: matchup-service
+    spec:
+      containers:
+        - name: matchup-service
+          image: dotalane/matchup-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5002
+            - containerPort: 5004
+          envFrom:
+            - configMapRef:
+                name: dotalane-config
+          env:
+            - name: ADVERTISE_HOST
+              value: "matchup-service"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Kubernetes"
+            - name: HERO_SERVICE_URL
+              value: "http://hero-service:5001"
+            - name: ADVICE_SERVICE_URL
+              value: "http://advice-service:5003"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matchup-service
+spec:
+  selector:
+    app: matchup-service
+  ports:
+    - name: grpc
+      port: 5002
+      targetPort: 5002
+    - name: rest
+      port: 5004
+      targetPort: 5004

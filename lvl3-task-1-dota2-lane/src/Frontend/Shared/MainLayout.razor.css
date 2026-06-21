@@ -1,0 +1,47 @@
+.layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.app-header {
+    background: linear-gradient(135deg, #141428, #1a1a2e);
+    border-bottom: 1px solid #2a2a4a;
+    padding: 1rem 0;
+}
+.header-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.logo {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0;
+    background: linear-gradient(135deg, #64b5f6, #81c784);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.tagline {
+    font-size: 0.8rem;
+    color: #555;
+    font-style: italic;
+    margin-left: auto;
+}
+.app-main {
+    flex: 1;
+    max-width: 960px;
+    margin: 1.5rem auto;
+    padding: 0 1.5rem;
+    width: 100%;
+}
+.app-footer {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.7rem;
+    color: #444;
+    border-top: 1px solid #1a1a1a;
+}

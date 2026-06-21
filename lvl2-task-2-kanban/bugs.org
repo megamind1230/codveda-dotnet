@@ -9,8 +9,13 @@
   port is configured in launchSettings.json.
 - Affects: Kanban.Mvc, Kanban.RazorPages, Kanban.Mixed.Minimal,
   Kanban.Mixed.ApiController — all 4 projects.
-- Fix: Disable UseHttpsRedirection() or configure an HTTPS URL in
-  launchSettings.json. Cosmetic only — app works over HTTP on localhost.
+- Fix: Remove the UseHttpsRedirection() call from each Program.cs, or add
+  an HTTPS URL to launchSettings.json. Cosmetic only — app works over HTTP.
+
+*** No other open bugs
+
+All 4 projects verified running (HTTP 200) on their respective ports.
+Build: 0 warnings, 0 errors.
 
 ** ===== FIXED =====
 

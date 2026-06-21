@@ -1,0 +1,94 @@
+.advice-card {
+    margin-top: 1.5rem;
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.verdict-banner {
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+}
+.banner-stomp {
+    background: linear-gradient(135deg, #1b5e20, #2e7d32);
+}
+.banner-survive {
+    background: linear-gradient(135deg, #e65100, #f57f17);
+    color: #fff;
+}
+.banner-avoid {
+    background: linear-gradient(135deg, #b71c1c, #c62828);
+}
+.verdict-icon {
+    font-size: 1.8rem;
+    display: block;
+    margin-bottom: 0.3rem;
+}
+.verdict-label {
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.01em;
+}
+.verdict-reason {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+.advice-body {
+    display: flex;
+    gap: 0;
+    border-top: 1px solid #2a2a2a;
+}
+.advice-col {
+    flex: 1;
+    padding: 1rem 1.25rem;
+}
+.advice-col:first-child {
+    border-right: 1px solid #2a2a2a;
+}
+.advice-col h4 {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.advice-col ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.advice-col li {
+    padding: 0.25rem 0;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.adv-col-you h4 {
+    color: #81c784;
+}
+.adv-col-you li::before {
+    content: "✓";
+    color: #81c784;
+    font-weight: 700;
+}
+.adv-col-enemy h4 {
+    color: #e57373;
+}
+.adv-col-enemy li::before {
+    content: "✗";
+    color: #e57373;
+    font-weight: 700;
+}
+@media (max-width: 600px) {
+    .advice-body {
+        flex-direction: column;
+    }
+    .advice-col:first-child {
+        border-right: none;
+        border-bottom: 1px solid #2a2a2a;
+    }
+}

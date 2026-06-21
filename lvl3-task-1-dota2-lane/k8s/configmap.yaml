@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dotalane-config
+data:
+  RABBITMQ_HOST: rabbitmq
+  CONSUL_HTTP_ADDR: "http://consul:8500"

@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.git/
+.vs/
+.vscode/
+**/.git/
+**/.vs/
+**/.vscode/
+.DS_Store
+*.md
+logs/
+k8s/

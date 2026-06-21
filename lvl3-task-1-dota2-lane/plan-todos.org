@@ -1,0 +1,297 @@
+* DotaLane — Implementation Plan
+:PROPERTIES:
+:UPDATED: 2026-06-21
+:END:
+
+** Legend
+- [ ] not started
+- [x] done
+- [~] in progress
+
+* DONE Phase 1: Project Scaffolding
+
+** 1.1 Create solution structure
+[x] Create src/ directory with DotaLane.slnx
+[x] Create projects (all target net8.0):
+      - ApiGateway (ASP.NET Core Empty, Ocelot 22.0.1)
+      - HeroService (ASP.NET Core 8.0 Web API, Dapper, SQLite)
+      - MatchupService (ASP.NET Core 8.0 gRPC + REST)
+      - AdviceService (ASP.NET Core 8.0 gRPC)
+      - Frontend (Blazor WASM 8.0)
+[x] Add NuGet packages per project (see tech-stack in README)
+[x] Verify solution builds (SDK 8.0.125, ASP.NET Core 8.0.25)
+
+** 1.2 Logging setup
+[x] Create ~/magnus/DotaLane/logs/ directory
+[x] Add Serilog to all services, configured to write to ~/magnus/DotaLane/logs/{ServiceName}/
+[x] Add log statements at key entry/exit points in each service
+
+* DONE Phase 2: Hero Service
+
+** 2.1 Database
+[x] Create SQLite database with table Heroes:
+     - Id (int, PK)
+     - Name (string)
+     - PrimaryAttribute (str: str/agi/int)
+     - DamageMin (int)
+     - DamageMax (int)
+     - AttackRange (int)
+      - BaseAttackTime (float)
+     - Armor (float)
+     - MoveSpeed (int)
+     - DayVision (int)
+     - NightVision (int)
+     - StrGain (float)
+     - AgiGain (float)
+     - IntGain (float)
+     - BaseStr (int)
+     - BaseAgi (int)
+     - BaseInt (int)
+
+[x] Seed 30 Dota 2 heroes with real-ish stats
+     - Mid: Shadow Fiend, Lina, Invoker, Sniper, Puck, Ember Spirit,
+       Storm Spirit, Void Spirit, QoP, Zeus
+     - Safe: Juggernaut, Phantom Assassin, Faceless Void, Spectre,
+       Anti-Mage, Sven, Wraith King, Monkey King, Drow Ranger, Morphling
+     - Off: Bristleback, Tidehunter, Axe, Centaur Warrunner, Mars,
+       Underlord, Timbersaw, Sand King, Night Stalker, Beastmaster
+
+** 2.2 API
+[x] Create HeroRepository (direct SQLite via Dapper)
+[x] Create HeroesController with endpoints:
+     - GET /api/heroes — list all heroes
+     - GET /api/heroes/{id} — single hero
+     - GET /api/heroes?lane=mid — filter by role
+[x] Add Serilog logging to each endpoint
+[x] Test with curl — 30 heroes loaded, lane filter works, single lookup works
+
+* DONE Phase 3: Advice Service
+
+** 3.1 gRPC Proto
+[x] Create advice.proto with AdviceService, HeroStats, AdviceRequest, AdviceResponse
+
+** 3.2 Advice logic
+[x] Implement rule engine in AdviceServiceImpl.cs:
+     - 9 stats compared with normalized diff threshold (0.15)
+     - advantages >= disadvantages + 2 → stomp
+     - disadvantages >= advantages + 2 → avoid
+     - else → survive
+     - Human-readable reason with top stats listed
+
+[x] Add Serilog logging: every advice request + verdict logged
+[x] Test with gRPC client — verified all 3 verdicts work:
+     - Drow vs Axe → "stomp" (3 adv vs 1 disadv)
+     - Axe vs Drow → "avoid" (1 adv vs 3 disadv)
+     - SF vs Lina → "survive" (balanced)
+
+* DONE Phase 4: Matchup Service
+
+** 4.1 gRPC Proto
+[x] Create matchup.proto with MatchupService, MatchupRequest, MatchupResponse, HeroStatLine
+
+** 4.2 Matchup logic
+[x] MatchupService calls HeroService (REST) → gets HeroDto for both heroes in parallel
+[x] Builds stat comparison table with 11 stat rows (including lower-is-better for BAT)
+[x] Calls AdviceService (gRPC) for lane verdict
+[x] Returns combined response: stat table + verdict + advice
+[x] Logging: every request + result logged
+[x] Test end-to-end: all 3 verdicts (stomp/survive/avoid) work via full chain
+[x] Added REST controller (MatchupController) on port 5004 for Ocelot proxying
+[x] MatchupService dual-port: gRPC on 5002, REST on 5004
+
+** 4.3 Renames
+[x] AttackSpeed → BaseAttackTime across: DB schema, Hero model, HeroDto, advice.proto, matchup.proto
+
+* DONE Phase 5: API Gateway (Ocelot)
+
+** 5.1 Setup
+[x] Add Ocelot NuGet package
+[x] Configure ocelot.json:
+     - /api/heroes → localhost:5001/api/heroes
+     - /api/heroes/{everything} → localhost:5001/api/heroes/{everything}
+     - /api/matchup/{everything} → localhost:5004/api/matchup/{everything}
+     - MatchupService now exposes both gRPC (port 5002) and REST (port 5004)
+[x] Added Kestrel config to each service (HTTP/2 for gRPC, HTTP/1.1 for REST)
+[x] Configured IHttpClientFactory for HTTP client DI in MatchupService
+[x] Test routing end-to-end:
+      - GET /api/heroes → 30 heroes ✅
+      - GET /api/heroes/1 → single hero ✅
+      - GET /api/matchup/19/23?lane=safe → verdict + stats ✅
+[x] Added ocelot.Development.json for local dev without Consul
+      - Uses DownstreamHostAndPorts (direct URLs) instead of ServiceDiscovery
+      - Loaded automatically when ASPNETCORE_ENVIRONMENT=Development
+
+** 5.2 Bug fixes during Phase 5
+[x] MatchupServiceImpl.FetchHeroAsync used _httpClient after switch to IHttpClientFactory
+[x] MatchupController needed same IHttpClientFactory treatment
+[x] Ocelot route /api/heroes (no trailing segment) was missing → 404 on list endpoint
+[x] Added `using Ocelot.DependencyInjection` to ApiGateway Program.cs
+
+* DONE Phase 6: Frontend (Blazor WASM)
+
+** 6.1 Pages
+[x] Create HeroSelect component — dropdown/autocomplete for hero + lane
+     - Lane pick: MID / SAFE / OFF
+     - Your hero select
+     - Enemy hero select
+[x] Create MatchupDisplay component — stat comparison table
+     - Side-by-side hero stats
+     - Highlighted rows (green/red) for advantage
+     - Lane advice verdict box at top
+[x] Create advice result component
+     - Big colored banner: green=stomp, yellow=survive, red=avoid
+     - Reason text
+     - Bullet points for advantages/disadvantages
+
+** 6.2 Services layer
+[x] Create ApiService (HTTP client → Gateway)
+     - GetHeroesAsync()
+     - GetMatchupAsync(yourHeroId, enemyHeroId, lane)
+[x] Wire up dependency injection for HttpClient
+
+** 6.3 Styling
+[x] Basic CSS — clean, readable stat table
+[x] Color coding for advantages (green/red)
+
+* DONE Phase 7: Service Discovery
+
+** 7.1 Consul
+[x] Add Consul NuGet package to each service
+[x] Add health check endpoint (/healthz) to each service
+     - ApiGateway: HTTP on port 5000
+     - HeroService: HTTP on port 5001
+     - MatchupService: HTTP on port 5004 (REST)
+     - AdviceService: HTTP on port 5005 (separate HTTP/1.1 port for health)
+[x] Register each service with Consul on startup, deregister on shutdown
+     - Service names: api-gateway, hero-service, matchup-service, advice-service
+     - HTTP health checks every 10s with 30s critical deregistration
+[x] Update Ocelot ocelot.json routes to use ServiceName + UseServiceDiscovery
+     - Global configuration points to Consul at localhost:8500
+     - Routes use Consul provider instead of hardcoded DownstreamHostAndPorts
+
+** 7.2 Testing
+[x] Start all services + Consul — all 7 containers healthy
+[x] Verify Gateway discovers and routes: /api/heroes, /api/heroes/{id}, /api/matchup/{yId}/{eId}?lane=
+[ ] Test failure scenario: stop a service, verify Consul deregisters it
+
+* DONE Phase 8: RabbitMQ Integration
+
+** 8.1 Hero patch event
+[x] Add RabbitMQ.Client NuGet to HeroService, MatchupService, AdviceService
+[x] Create HeroStatsUpdatedEvent model (EventType, Timestamp, HeroIds)
+[x] Create RabbitMqPublisher service in HeroService:
+     - Connects to RabbitMQ on localhost:5672 (guest/guest)
+     - Declares topic exchange "dotalane.hero"
+     - Publishes HeroStatsUpdated with routing key "hero.updated"
+[x] Create POST /api/heroes/reload endpoint:
+     - Fetches all hero IDs from the database
+     - Publishes HeroStatsUpdated event with all IDs
+     - Returns 200 OK with event details
+
+** 8.2 Consumers
+[x] Create HeroEventConsumer (BackgroundService) in MatchupService:
+     - Connects to RabbitMQ, declares exchange, creates durable queue "matchup-service.hero-events"
+     - Binds queue to "dotalane.hero" with routing key "hero.updated"
+     - Logs each received event via Serilog
+     - Cleans up connection on shutdown (OperationCanceledException)
+[x] Create HeroEventConsumer (BackgroundService) in AdviceService:
+     - Same pattern, queue name "advice-service.hero-events"
+     - Logs each received event via Serilog
+[x] Verify: hit /reload → 200 OK with 30 heroes, event published
+
+* DONE Phase 9: Docker
+
+** 9.1 Dockerfiles
+[x] Create Dockerfile per service:
+     - ApiGateway: multi-stage SDK → aspnet:8.0, port 5000
+     - HeroService: multi-stage SDK → aspnet:8.0, port 5001, SQLite bundled
+     - MatchupService: multi-stage SDK → aspnet:8.0, dual ports 5002/5004
+     - AdviceService: multi-stage SDK → aspnet:8.0, dual ports 5003/5005
+     - Frontend: multi-stage SDK → nginx:alpine, port 80 (mapped to 5010)
+
+** 9.2 Docker networking
+[x] All services listen on 0.0.0.0 (IPAddress.Any) instead of localhost
+[x] Inter-service URLs configurable via env vars:
+     - HERO_SERVICE_URL (default: http://localhost:5001)
+     - ADVICE_SERVICE_URL (default: http://localhost:5003)
+     - CONSUL_HTTP_ADDR (default: http://localhost:8500)
+     - RABBITMQ_HOST (default: localhost)
+     - ADVERTISE_HOST (default: localhost) — used for Consul registration
+[x] Ocelot loads ocelot.Docker.json when ASPNETCORE_ENVIRONMENT=Docker
+     - Overrides ServiceDiscoveryProvider.Host → consul:8500
+[x] MatchupService uses HttpClient BaseAddress pattern — no hardcoded URLs
+
+** 9.3 docker-compose.yml
+[x] Created docker-compose.yml with all 7 services:
+     - consul (hashicorp/consul:latest, port 8500)
+     - rabbitmq (rabbitmq:3-management, ports 5672, 15672)
+     - hero-service, advice-service, matchup-service, api-gateway, frontend
+     - Proper depends_on ordering (consul+rabbitmq first, services after)
+     - restart: unless-stopped policy
+
+** 9.4 Testing
+[x] docker compose build — all 5 images built
+[x] docker compose up — all 7 containers healthy (consul, rabbitmq, 4 services, frontend)
+[x] Verify: all endpoints work through gateway (heroes, single hero, matchup)
+
+* DONE Phase 10: Kubernetes
+
+** 10.1 Manifests
+[x] Created k8s/ directory with 8 manifest files:
+     - configmap.yaml — shared env vars (RABBITMQ_HOST, CONSUL_HTTP_ADDR)
+     - consul.yaml — Deployment + Service (hashicorp/consul:latest, port 8500)
+     - rabbitmq.yaml — Deployment + Service (rabbitmq:3-management, ports 5672/15672)
+     - hero-service.yaml — Deployment + Service (port 5001)
+     - advice-service.yaml — Deployment + Service (ports 5003 gRPC, 5005 health)
+     - matchup-service.yaml — Deployment + Service (ports 5002 gRPC, 5004 REST)
+     - api-gateway.yaml — Deployment + NodePort Service (port 5000, nodePort 30000)
+     - frontend.yaml — Deployment + NodePort Service (port 80, nodePort 30010)
+[x] All deployments include:
+     - envFrom: configMapRef (dotalane-config) for shared settings
+     - Service-specific env vars (ADVERTISE_HOST, HERO_SERVICE_URL, ADVICE_SERVICE_URL)
+     - ASPNETCORE_ENVIRONMENT=Kubernetes (loads ocelot.Kubernetes.json in gateway)
+     - Readiness probes via /healthz endpoints
+     - Resource requests/limits
+[x] Created ocelot.Kubernetes.json for ApiGateway (Consul → consul:8500)
+
+** 10.2 Verify
+[ ] docker compose build  (or docker build per service)
+[ ] kubectl apply -f k8s/
+[ ] kubectl get pods — all Running
+[ ] kubectl get svc — all created
+[ ] Test: curl http://localhost:30000/api/heroes → 30 heroes via gateway
+
+* DONE Phase 11: Polish & Documentation
+
+** 11.1 README.org
+[x] Write app features, structure, tech stack, how-to-run
+
+** 11.2 Testing
+[x] Manual end-to-end test — all APIs return correct data
+[x] Build — 0 errors, 0 warnings across all 5 projects
+
+** 11.3 Final verification
+[x] Verify all .org files are up to date
+[x] Verify ~/magnus/DotaLane/logs/ has logs from all services
+[x] Added ocelot.Development.json for Consul-free local development
+[x] Document .NET SDK 8.0.125 / ASP.NET Core 8.0.25 in README tech stack
+
+* DONE Phase 12: create a setup bash script
+
+** 12.1 Script features
+[x] Created setup.sh at project root — usage: ./setup.sh {local|docker|k8s|stop|clean}
+[x] Prerequisites check (dotnet, curl, docker, kubectl)
+[x] Version check — lists installed SDKs + runtimes, warns if net8.0 missing
+[x] Build all projects
+[x] Mode: local — launches all services with unique ports (5000-5010)
+[x] Mode: docker — docker compose build + up
+[x] Mode: k8s — docker compose build + kubectl apply
+[x] Health check suite with timeouts
+[x] Stop/clean functions
+[x] Default mode changed to 'local' (was 'docker')
+
+** 12.2 Fixes made during Phase 12
+[x] Frontend Blazor dev server needed explicit port 5010 in launchSettings.json
+     (was defaulting to 5000, conflicting with ApiGateway)
+[x] ApiGateway /healthz returning 404 (Ocelot intercepts all requests)
+     Fixed by adding middleware before UseOcelot() that short-circuits /healthz

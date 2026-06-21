@@ -1,0 +1,50 @@
+* Plan: ncdu-clone-dotnet
+
+Target: .NET 10.0 (=net10.0=), SDK 10.0.109, ASP.NET Core Runtime 10.0.9
+
+** Step 1 — Scaffold project [done]
+   - ~dotnet new console~ in =lvl3-task-2=
+   - Create =Services/= and =Models/= directories
+   - Enable <ImplicitUsings> and <Nullable> (already default)
+   - Later moved into =ncduCloneDotnet/= subdirectory
+
+** Step 2 — =Models/FileEntry.cs= [done]
+   - Properties: Name, FullPath, Size, IsDirectory, Children, ErrorCount, FileCount, DirCount
+   - =PrettyPrint()= renders a tree with └── / ├── prefixes
+   - =HumanSize()= static helper for KB/MB/GB formatting
+
+** Step 3 — =Models/ScanProgress.cs= [done]
+   - =IProgress<T>= payload: CurrentPath, BytesFound, DirsScanned, FilesScanned, Errors, Percent
+
+** Step 4 — =Services/LogService.cs= [done]
+   - Writes timestamped logs to =~/magnus/ncdu-clone-dotnet/logs/scan-{yyyyMMdd-HHmmss}.log=
+   - Retains last 5 logs, deletes older automatically
+   - =Info()= → file only, =Error()= → file + stderr
+
+** Step 5 — =Services/DirectoryScanner.cs= [done]
+   - =ScanAsync(rootPath, maxDepth, progress, ct)=
+   - Recursive; fan-out subdirs via =Task.WhenAll= (TPL)
+   - File stats via =Parallel.ForEach= with =Interlocked.Add= for atomic accumulation
+   - Top-N largest files tracked in =ConcurrentBag= with =lock=
+   - Handles =UnauthorizedAccessException= gracefully
+   - =--exclude= glob pattern filtering
+   - =--min-size= threshold filtering (K/M/G suffixes)
+
+** Step 6 — =Program.cs= [done]
+   - CLI arg parsing: =--source <path> --max-depth <n> --top <n> --human --exclude --min-size=
+   - =CancellationTokenSource= with Ctrl+C handler
+   - =Progress<ScanProgress>= redraws a progress bar inline
+   - Race condition demo (DEBUG): shows plain += vs =Interlocked.Add=
+   - Deadlock demo (DEBUG, commented out): shows =.Result= deadlock with note
+   - =--exclude= and =--min-size= argument parsing with =ParseSize()= suffix parser
+
+** Step 7 — Documentation [done]
+   - =README.org= — features, structure, tech stack, usage
+   - =plan-todos.org= — this file
+   - =bugs.org= — issue tracker
+
+** Step 8 — =--exclude= and =--min-size= [done]
+   - =--exclude= glob pattern for ignoring matching dirs/files (supports =*= and =?=)
+   - =--min-size= with K/M/G suffix support (e.g. =100K=, =1M=, =2G=)
+   - Filter applied in =DirectoryScanner.ScanDirectoryAsync= before =Parallel.ForEach=
+   - =ParseSize()= helper in =Program.cs= for suffix parsing

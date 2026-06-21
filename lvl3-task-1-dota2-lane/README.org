@@ -1,0 +1,1174 @@
+* DotaLane
+:PROPERTIES:
+:UPDATED: 2026-06-21
+:END:
+
+Pick your lane. See the matchup. Get advice.
+
+A microservices-based Dota 2 lane analysis tool — only the first 10 minutes
+of the laning phase, no teamfight noise, no cross-lane interference.
+
+** Features
+- Pick a lane (MID / SAFE / OFF)
+- Select your hero and the enemy hero
+- See side-by-side stat comparison with advantages highlighted (green/red)
+- Get lane verdict: *STOMP* / *SURVIVE* / *AVOID* with reasoning and bullet points
+- Only stat-based — no MMR, no hidden match data, just raw numbers
+- Reload endpoint publishes RabbitMQ event to update consumers
+- Consul service discovery for dynamic routing
+
+** Tech Stack
+| Layer               | Technology                                     |
+|---------------------+------------------------------------------------|
+| Frontend            | Blazor WASM (port 5010), .NET 8.0              |
+| API Gateway         | Ocelot 22.0.1 with Consul provider             |
+| Hero Service        | ASP.NET Core 8.0 Web API + SQLite + Dapper     |
+| Matchup Service     | ASP.NET Core 8.0 gRPC + REST                   |
+| Advice Service      | ASP.NET Core 8.0 gRPC                          |
+| Inter-service sync  | gRPC (Matchup → Advice)                        |
+| Inter-service async | RabbitMQ (Hero patch events)                   |
+| Service Discovery   | Consul 1.7.14.4                                |
+| Containerization    | Docker / docker-compose                        |
+| Orchestration       | Kubernetes (manifests in k8s/)                 |
+| Logging             | Serilog → console + rolling files              |
+| SDK                 | .NET SDK 8.0.125 (net8.0 target)              |
+| ASP.NET Runtime     | ASP.NET Core 8.0.25                           |
+| Database            | SQLite (via Microsoft.Data.Sqlite 8.0)        |
+
+** Architecture
+
+#+begin_src text
+  Browser ───► Blazor WASM ──► ApiGateway (Ocelot) ──┬──► HeroService
+                    (5010)          (5000)            │       (5001)
+                                                      └──► MatchupService
+                                                             (5004 REST)
+                                                                │
+                                                          gRPC  │
+                                                                ▼
+                                                          AdviceService
+                                                             (5003 gRPC)
+
+  Consul (8500) ◄── service registration ── all services
+  RabbitMQ (5672) ◄── HeroStatsUpdated events
+#+end_src
+
+** Project Structure
+
+#+begin_src text
+   lvl3-task-1-dota2-lane/
+   ├── README.org
+   ├── plan-todos.org
+   ├── bugs.org
+   ├── docker-compose.yml
+   ├── k8s/                      # Kubernetes manifests
+   │   ├── configmap.yaml
+   │   ├── consul.yaml
+   │   ├── rabbitmq.yaml
+   │   ├── hero-service.yaml
+   │   ├── advice-service.yaml
+   │   ├── matchup-service.yaml
+   │   ├── api-gateway.yaml
+   │   └── frontend.yaml
+   └── src/
+       ├── DotaLane.slnx
+       ├── ApiGateway/           # Ocelot gateway + Dockerfile
+       ├── HeroService/          # Hero data + REST API + Dockerfile
+       ├── MatchupService/       # Orchestrator: gRPC + REST + Dockerfile
+       ├── AdviceService/        # Verdict engine + gRPC + Dockerfile
+       └── Frontend/             # Blazor WASM + Dockerfile
+#+end_src
+
+** Port Map
+
+| Service           | Port(s)                        | URL                              |
+|-------------------+--------------------------------+----------------------------------|
+| Frontend (Web UI) | 5010 (host) / 80 (container)   | http://localhost:5010/           |
+| API Gateway       | 5000                           | http://localhost:5000            |
+| Hero Service      | 5001                           | http://localhost:5001            |
+| Matchup Service   | 5002 (gRPC) / 5004 (REST)      | http://localhost:5004            |
+| Advice Service    | 5003 (gRPC) / 5005 (health)    | http://localhost:5005            |
+| RabbitMQ          | 5672 (AMQP) / 15672 (mgmt)     | http://localhost:15672           |
+| Consul            | 8500                           | http://localhost:8500            |
+
+** Quick Start
+
+The easiest way to run the full stack (with Consul + RabbitMQ):
+
+#+begin_src sh
+./setup.sh docker          # builds + starts all containers
+./setup.sh stop            # stops them
+#+end_src
+
+Then open **http://localhost:5010/** in your browser for the web UI.
+
+API endpoints are also available through the gateway at http://localhost:5000:
+
+#+begin_src sh
+curl http://localhost:5000/api/heroes                    # all 30 heroes
+curl http://localhost:5000/api/heroes/1                   # single hero
+curl "http://localhost:5000/api/matchup/19/23?lane=safe"  # matchup + verdict
+curl -X POST http://localhost:5001/api/heroes/reload      # RabbitMQ event
+#+end_src
+
+*** Local development (standalone, no Docker)
+
+All services tolerate missing Consul and RabbitMQ — they log a warning
+and continue without them.
+
+#+begin_src sh
+./setup.sh local     # builds + starts all services on ports 5000-5010
+#+end_src
+
+The API Gateway uses ~ocelot.Development.json~ (auto-loaded when
+~ASPNETCORE_ENVIRONMENT=Development~, the default) for direct URL
+routing without Consul. Services can be started individually:
+
+#+begin_src sh
+dotnet run --project src/HeroService     &   # port 5001
+dotnet run --project src/AdviceService   &   # port 5003 (gRPC) + 5005 (health)
+dotnet run --project src/MatchupService  &   # ports 5002 (gRPC) + 5004 (REST)
+dotnet run --project src/ApiGateway      &   # port 5000
+dotnet run --project src/Frontend        &   # port 5010 (Blazor dev server)
+#+end_src
+
+Test:
+#+begin_src sh
+curl http://localhost:5000/api/heroes                    # all 30 heroes
+curl http://localhost:5000/api/heroes/1                   # single hero
+curl "http://localhost:5000/api/matchup/19/23?lane=safe"  # matchup + verdict
+curl -X POST http://localhost:5001/api/heroes/reload      # RabbitMQ event
+#+end_src
+
+*** Docker (with Consul + RabbitMQ) — Recommended
+
+#+begin_src sh
+docker compose build
+docker compose up -d
+curl http://localhost:5000/api/heroes                    # via gateway
+docker compose down                                       # stop
+#+end_src
+
+Or via the script (builds + starts + runs health checks):
+#+begin_src sh
+./setup.sh docker
+#+end_src
+
+Then open **http://localhost:5010/** in your browser for the web UI.
+
+*** Kubernetes
+
+#+begin_src sh
+# Build and push images first, then:
+kubectl apply -f k8s/
+kubectl get pods
+curl http://localhost:30000/api/heroes  # via NodePort
+#+end_src
+
+** Configuration via Environment Variables
+
+| Variable            | Default                  | Description                       |
+|---------------------+--------------------------+-----------------------------------|
+| CONSUL_HTTP_ADDR    | http://localhost:8500     | Consul agent address              |
+| RABBITMQ_HOST       | localhost                | RabbitMQ hostname                 |
+| ADVERTISE_HOST      | localhost                | Hostname advertised to Consul     |
+| HERO_SERVICE_URL    | http://localhost:5001    | Base URL for HeroService (Matchup)|
+| ADVICE_SERVICE_URL  | http://localhost:5003    | gRPC URL for AdviceService        |
+
+** API Endpoints
+
+| Method | Path                                    | Description               |
+|--------+-----------------------------------------+---------------------------|
+| GET    | /api/heroes                             | List all heroes           |
+| GET    | /api/heroes?lane=mid                    | Filter by lane            |
+| GET    | /api/heroes/{id}                        | Single hero by ID         |
+| POST   | /api/heroes/reload                      | Publish HeroStatsUpdated  |
+| GET    | /api/matchup/{yId}/{eId}?lane=mid       | Get matchup + verdict     |
+| GET    | /healthz                                | Health check (all svcs)   |
+
+** Logs
+
+All services log to stdout (Docker/k8s friendly) and rolling files at
+~/magnus/DotaLane/logs/{ServiceName}/log-{date}.txt.
+
+* TIL
+** Microservices Architecture with .NET
+Microservices means *splitting a large application into multiple small
+services*, where each service has a specific responsibility and can be
+developed, deployed, and scaled independently.
+
+Instead of:
+
+#+begin_src text
+Monolithic Application
+├── Users
+├── Products
+├── Orders
+├── Payments
+└── Notifications
+#+end_src
+
+You create them as services:
+
+#+begin_src text
+User Service
+Product Service
+Order Service
+Payment Service
+Notification Service
+#+end_src
+
+Each service is its own ASP.NET Core application.
+
+
+** 1. Design Microservices-Based Architecture
+** Monolith vs Microservices
+*** Monolith
+#+begin_src text
+Client
+  |
+  V
+Single ASP.NET App
+  |
+  +-- Users
+  +-- Orders
+  +-- Payments
+#+end_src
+
+Pros:
+
+- Easy to start
+- Simple deployment
+
+Cons:
+
+- Hard to scale parts independently
+- Large codebase becomes difficult to maintain
+
+
+*** Microservices
+#+begin_src text
+Client
+  |
+  V
+=API Gateway=
+  |
+  +-- User Service
+  +-- Order Service
+  +-- Payment Service
+#+end_src
+
+Pros:
+
+- Independent deployment
+- Independent scaling
+- Teams can work separately
+
+Cons:
+
+- More complexity
+- Networking issues
+- Distributed debugging
+
+
+** Example E-Commerce System
+#+begin_src text
+User Service
+    |
+Order Service
+    |
+Payment Service
+    |
+Notification Service
+#+end_src
+
+Responsibilities:
+
+*** User Service
+#+begin_src text
+Register
+Login
+Profile
+JWT
+#+end_src
+
+*** Product Service
+#+begin_src text
+Products
+Categories
+Inventory
+#+end_src
+
+*** Order Service
+#+begin_src text
+Create Orders
+Track Orders
+#+end_src
+
+*** Payment Service
+#+begin_src text
+Process Payments
+#+end_src
+
+*** Notification Service
+#+begin_src text
+Emails
+SMS
+#+end_src
+
+Each service owns its database:
+
+#+begin_src text
+UserDB
+ProductDB
+OrderDB
+PaymentDB
+#+end_src
+
+This is an important microservice principle:
+#+begin_quote
+Database per service.
+#+end_quote
+
+
+** 2. API Gateway
+Without a gateway:
+
+#+begin_src text
+Frontend
+ |
+ +--> User Service
+ |
+ +--> Product Service
+ |
+ +--> Order Service
+#+end_src
+
+Frontend must know every service.
+
+
+With API Gateway:
+
+#+begin_src text
+Frontend
+    |
+    V
+API Gateway
+    |
+    +--> User Service
+    +--> Product Service
+    +--> Order Service
+#+end_src
+
+Benefits:
+
+- Single entry point
+- Authentication
+- Routing
+- Rate limiting
+- Logging
+
+
+** Popular .NET Gateway
+Ocelot
+
+Example:
+
+#+begin_src text
+/api/users
+/api/orders
+/api/products
+#+end_src
+
+Gateway routes requests to correct services.
+
+
+** 3. Service Discovery
+Problem:
+
+#+begin_src text
+Order Service
+needs
+Payment Service
+#+end_src
+
+But Payment Service IP changes constantly.
+
+Bad:
+
+#+begin_src text
+http://192.168.1.44
+#+end_src
+
+
+Service Discovery solves this.
+
+Instead:
+
+#+begin_src text
+http://payment-service
+#+end_src
+
+A registry tracks service locations.
+
+
+Popular tools:
+
+- Consul
+- Eureka
+- Kubernetes built-in service discovery
+
+
+Example:
+
+#+begin_src text
+Order Service
+    |
+    | asks registry
+    V
+Payment Service = 10.1.1.7
+#+end_src
+
+
+** 4. Inter-Service Communication
+Microservices need to talk to each other.
+
+Two common approaches:
+
+** A. Synchronous Communication (gRPC)
+#+begin_src text
+Order Service
+      |
+      V
+Payment Service
+#+end_src
+
+Request waits for response.
+
+
+*** gRPC
+Uses:
+
+#+begin_src text
+Protocol Buffers
+HTTP/2
+#+end_src
+
+Advantages:
+
+- Very fast
+- Smaller payloads
+- Strong typing
+
+Example:
+
+#+begin_src proto
+service PaymentService {
+  rpc ProcessPayment(PaymentRequest)
+      returns (PaymentResponse);
+}
+#+end_src
+
+ASP.NET Core supports gRPC natively.
+
+
+*** When to use gRPC
+When immediate response is needed.
+#+begin_src text
+Inventory Check
+Payment Verification
+User Validation
+#+end_src
+
+
+
+** B. Asynchronous Communication (RabbitMQ)
+Instead of calling directly:
+
+#+begin_src text
+Order Service
+     |
+Publish Event
+     |
+RabbitMQ
+     |
+Notification Service
+#+end_src
+
+
+Example:
+
+#+begin_src text
+Order Created
+#+end_src
+
+Event is sent.
+
+Consumers react later.
+
+#+begin_src text
+Send Email
+Generate Invoice
+Update Analytics
+#+end_src
+
+
+Advantages:
+
+- Loose coupling
+- Better scalability
+- Services can be offline temporarily
+
+
+Popular Broker: RabbitMQ
+
+Workflow:
+
+#+begin_src text
+Order Service
+      |
+      V
+RabbitMQ
+      |
+      +--> Notification Service
+      |
+      +--> Analytics Service
+#+end_src
+
+
+** gRPC vs RabbitMQ
+| Feature            | gRPC      | RabbitMQ |
+|--------------------+-----------+----------|
+| Immediate response | Yes       | No       |
+| Fast communication | Yes       | Good     |
+| Event-driven       | No        | Yes      |
+| Loose coupling     | Medium    | High     |
+| Real-time request  | Excellent | Poor     |
+
+Use:
+
+#+begin_src text
+Need response now?
+    -> gRPC
+
+Just notify others?
+    -> RabbitMQ
+#+end_src
+
+
+** 5. Docker
+Each service gets its own container.
+
+#+begin_src text
+User Service Container
+Product Service Container
+Order Service Container
+#+end_src
+
+Example Dockerfile:
+
+#+begin_src dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+COPY publish/ .
+
+ENTRYPOINT ["dotnet", "UserService.dll"]
+#+end_src
+
+Build:
+
+#+begin_src sh
+docker build -t userservice .
+#+end_src
+
+Run:
+
+#+begin_src sh
+docker run -p 5001:8080 userservice
+#+end_src
+
+
+** 6. Kubernetes
+Docker runs containers.
+
+Kubernetes manages many containers.
+
+
+Without Kubernetes:
+
+#+begin_src text
+Container crashes
+=> manual restart
+#+end_src
+
+With Kubernetes:
+
+#+begin_src text
+Container crashes
+=> auto restart
+#+end_src
+
+
+Features:
+
+*** Scaling
+#+begin_src sh
+kubectl scale deployment userservice --replicas=5
+#+end_src
+
+#+begin_src text
+User Service
+ ├─ Instance 1
+ ├─ Instance 2
+ ├─ Instance 3
+ ├─ Instance 4
+ └─ Instance 5
+#+end_src
+
+
+*** Load Balancing
+#+begin_src text
+Request
+   |
+   +--> Pod1
+   +--> Pod2
+   +--> Pod3
+#+end_src
+
+
+*** Self-Healing
+#+begin_src text
+Pod dies
+   |
+   V
+Kubernetes creates new Pod
+#+end_src
+
+
+** Typical Architecture
+#+begin_src text
+Frontend
+    |
+API Gateway
+    |
++-------------------+
+| Kubernetes Cluster|
++-------------------+
+      |
+      +--> User Service
+      +--> Product Service
+      +--> Order Service
+      +--> Payment Service
+      +--> Notification Service
+      |
+      +--> RabbitMQ
+      |
+      +--> SQL Server
+#+end_src
+
+** 7. Multi-Stage Docker Builds
+
+A single Dockerfile can produce a smaller final image by using multiple
+~FROM~ statements. Each ~FROM~ is a *stage*; earlier stages contain build
+tools, later stages contain only what is needed to run.
+
+#+begin_src dockerfile
+# Stage 1 — build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish src/HeroService/...csproj -c Release -o /app/publish
+
+# Stage 2 — runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HeroService.dll"]
+#+end_src
+
+Why multi-stage:
+
+- The SDK image is ~1.5 GB; the ASP.NET runtime image is ~200 MB
+- Only the published output (DLLs, config) is copied to the final image
+- No compiler, NuGet cache, or source code in the production image
+- ~COPY --from=build~ pulls files from an earlier stage by name
+
+** 8. Docker Compose
+
+Docker Compose lets you define and run multi-container applications with a
+single ~docker compose up~ command.
+
+#+begin_src yaml
+services:
+  consul:
+    image: hashicorp/consul:latest
+    ports:
+      - "8500:8500"
+    healthcheck:                      # ← Docker-level health check
+      test: ["CMD", "consul", "info"]
+      interval: 5s
+      retries: 5
+
+  hero-service:
+    build:
+      context: .
+      dockerfile: src/HeroService/Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+    depends_on:
+      consul:
+        condition: service_healthy    # ← wait until Consul is healthy
+    restart: unless-stopped           # ← auto-restart on crash
+#+end_src
+
+Key concepts:
+
+- *services* — each container is a service with a name, image/build, ports
+- *ports* — ~"host:container"~ mapping so services are reachable from the host
+- *environment* — env vars injected into the container at runtime
+- *depends_on* — ordering and optional ~condition~ (service_started, service_healthy)
+- *healthcheck* — Docker pings the container periodically (avoid depends_on timeouts)
+- *restart* — crash recovery policy (no, always, on-failure, unless-stopped)
+
+Docker Compose creates a *default network* so containers can reach each
+other by service name (e.g. hero-service can reach ~http://consul:8500~).
+
+Commands:
+
+#+begin_src sh
+docker compose build     # build all images
+docker compose up -d     # start all containers in background
+docker compose down      # stop and remove containers
+docker compose logs -f   # tail logs from all services
+docker compose ps        # show status of all services
+#+end_src
+
+** 9. Kubernetes Resources
+
+Kubernetes (K8s) orchestrates containers across a cluster. This project uses
+several K8s resource types:
+
+*** Deployment
+
+A Deployment manages a set of identical Pods. It handles rolling updates,
+scaling, and self-healing.
+
+#+begin_src yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hero-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hero-service
+  template:
+    metadata:
+      labels:
+        app: hero-service
+    spec:
+      containers:
+        - name: hero-service
+          image: dotalane/hero-service:latest
+          ports:
+            - containerPort: 5001
+          envFrom:
+            - configMapRef:
+                name: dotalane-config
+          env:
+            - name: ADVERTISE_HOST
+              value: "hero-service"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+#+end_src
+
+- *replicas* — how many pods to run (scale horizontally)
+- *selector/labels* — match pods to the deployment
+- *readinessProbe* — K8s checks /healthz before routing traffic to a pod
+- *resources* — ~requests~ (guaranteed) vs ~limits~ (maximum allowed)
+
+*** Service
+
+A Service provides a stable network endpoint for a set of pods (which may
+be recreated with new IPs).
+
+ClusterIP (default) — internal-only, reachable within the cluster:
+
+#+begin_src yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hero-service
+spec:
+  selector:
+    app: hero-service           # routes to pods with this label
+  ports:
+    - port: 5001                # what other services connect to
+      targetPort: 5001          # what the pod listens on
+#+end_src
+
+NodePort — exposes the service externally via a static port on every node:
+
+#+begin_src yaml
+spec:
+  type: NodePort
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30000           # external port (30000-32767)
+#+end_src
+
+*** ConfigMap
+
+ConfigMap stores non-sensitive configuration as key-value pairs, injected
+into pods via ~envFrom~ or ~configMapKeyRef~:
+
+#+begin_src yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dotalane-config
+data:
+  RABBITMQ_HOST: rabbitmq
+  CONSUL_HTTP_ADDR: "http://consul:8500"
+#+end_src
+
+*** Useful kubectl commands
+
+#+begin_src sh
+kubectl apply -f k8s/               # create/update all resources
+kubectl get pods                     # list pods with status
+kubectl get svc                      # list services
+kubectl logs deployment/hero-service # tail logs from a deployment
+kubectl describe pod hero-service-xxx # detailed pod info + events
+kubectl scale deployment matchup-service --replicas=3  # scale out
+kubectl delete -f k8s/              # delete all resources
+#+end_src
+
+** 10. Environment-Based Configuration (.NET)
+
+The ~ASPNETCORE_ENVIRONMENT~ variable controls which config files are loaded:
+
+#+begin_src csharp
+// Program.cs
+builder.Configuration.AddJsonFile("ocelot.json" optional: false);
+builder.Configuration.AddJsonFile($"ocelot.{builder.Environment.EnvironmentName}.json", optional: true);
+// In Development → also loads ocelot.Development.json
+// In Docker       → also loads ocelot.Docker.json
+// In Kubernetes   → also loads ocelot.Kubernetes.json
+#+end_src
+
+The project uses this for Ocelot routing:
+
+| Environment  | Config file               | Routing method                |
+|--------------+---------------------------+-------------------------------|
+| Development  | ocelot.Development.json   | Direct DownstreamHostAndPorts |
+| Docker       | ocelot.json + Docker      | Consul service discovery      |
+| Kubernetes   | ocelot.json + Kubernetes  | Consul service discovery      |
+
+The environment is set in:
+- Dockerfile: ~ENV ASPNETCORE_ENVIRONMENT=Docker~
+- K8s manifest: ~value: "Kubernetes"~
+- Locally: defaults to Development (from launchSettings.json or implicit)
+
+** 11. gRPC in ASP.NET Core
+
+gRPC uses Protocol Buffers (protobuf) for serialization and HTTP/2 for
+transport. It is faster than REST/JSON for internal service-to-service calls.
+
+Define a service in a ~.proto~ file:
+
+#+begin_src proto
+syntax = "proto3";
+package dotalane;
+
+service AdviceService {
+  rpc GetAdvice(AdviceRequest) returns (AdviceResponse);
+}
+
+message AdviceRequest {
+  int32 your_hero_id = 1;
+  int32 enemy_hero_id = 2;
+  string lane = 3;
+}
+
+message AdviceResponse {
+  string verdict = 1;       // stomp / survive / avoid
+  string reason = 2;
+  repeated string advantages = 3;
+  repeated string disadvantages = 4;
+}
+#+end_src
+
+The .proto file is compiled by the ~Protobuf~ SDK item in the .csproj:
+
+#+begin_src xml
+<Protobuf Include="Protos\*.proto" GrpcServices="Both" />
+#+end_src
+
+This generates:
+- ~AdviceService.AdviceServiceBase~ — base class the server inherits
+- ~AdviceService.AdviceServiceClient~ — typed client for callers
+
+Server side (AdviceService):
+
+#+begin_src csharp
+public class AdviceServiceImpl : AdviceService.AdviceServiceBase
+{
+    public override Task<AdviceResponse> GetAdvice(
+        AdviceRequest request, ServerCallContext context)
+    {
+        // ... logic ...
+        return Task.FromResult(response);
+    }
+}
+
+// Registration:
+app.MapGrpcService<AdviceServiceImpl>();
+#+end_src
+
+Client side (MatchupService):
+
+#+begin_src csharp
+var channel = GrpcChannel.ForAddress(adviceServiceUrl);
+var client = new AdviceServiceClient(channel);
+var reply = await client.GetAdviceAsync(request);
+#+end_src
+
+** 12. Kestrel Multi-Protocol Hosting
+
+Some services in this project listen on *two ports* — one for gRPC (HTTP/2)
+and one for REST (HTTP/1.1). This is configured in Kestrel:
+
+#+begin_src csharp
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Listen(IPAddress.Any, 5002,
+        o => o.Protocols = HttpProtocols.Http2);      // gRPC
+    options.Listen(IPAddress.Any, 5004,
+        o => o.Protocols = HttpProtocols.Http1);      // REST
+});
+#+end_src
+
+Why both?
+
+- gRPC requires HTTP/2 (h2c without TLS in development)
+- The API Gateway (Ocelot) uses HTTP/1.1 for REST proxying
+- Health checks (/healthz) are simple HTTP/1.1 GET requests
+- Having separate ports avoids protocol negotiation issues
+
+Service port map for MatchupService:
+
+| Port | Protocol | Purpose                    |
+|------+----------+----------------------------|
+| 5002 | HTTP/2   | gRPC (AdviceService calls) |
+| 5004 | HTTP/1.1 | REST + health (Gateway)    |
+
+** 13. IHttpClientFactory
+
+Instead of creating ~new HttpClient()~ manually (which can cause socket
+exhaustion), use ~IHttpClientFactory~:
+
+#+begin_src csharp
+// Registration
+builder.Services.AddHttpClient("HeroService", client =>
+{
+    client.BaseAddress = new Uri(heroServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+// Usage (injected)
+public class MatchupServiceImpl : MatchupService.MatchupServiceBase
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public MatchupServiceImpl(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
+
+    private async Task<HeroDto?> FetchHeroAsync(int id)
+    {
+        var client = _httpClientFactory.CreateClient("HeroService");
+        return await client.GetFromJsonAsync<HeroDto>($"/api/heroes/{id}");
+    }
+}
+#+end_src
+
+Benefits:
+
+- Connection pooling — reuses TCP connections instead of opening new ones
+- DNS rotation — respects DNS TTL and re-resolves addresses
+- Timeout handling — each named client has its own timeout config
+- Resilience — easy to add retry policies with Polly later
+
+** 14. Serilog Logging
+
+Serilog provides structured logging — instead of text strings, you log
+properties that can be searched and filtered:
+
+#+begin_src csharp
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.File(
+        Path.Combine(home, "magnus", "DotaLane", "logs", "HeroService", "log-.txt"),
+        rollingInterval: RollingInterval.Day)
+    .WriteTo.Console()
+    .CreateLogger();
+
+// Usage:
+Log.Information("Fetching hero {HeroId} for lane {Lane}", heroId, lane);
+Log.Warning(ex, "Consul not available — skipping registration");
+Log.Fatal(ex, "HeroService terminated unexpectedly");
+#+end_src
+
+Key features:
+
+- *Sinks* — output to console, file, Elasticsearch, etc.
+- *Rolling file* — creates a new file each day (~log-2026-06-21.txt~)
+- *Structured data* — ~{HeroId}~ and ~{Lane}~ are captured as properties, not just text
+- *Log levels* — Verbose, Debug, Information, Warning, Error, Fatal
+
+The ~Serilog.AspNetCore~ package hooks into ASP.NET Core's logging
+pipeline automatically via ~UseSerilog()~.
+
+** 15. Blazor WebAssembly (WASM)
+
+Blazor WASM runs .NET code *in the browser* via WebAssembly. The app is
+statically compiled to .NET IL, then interpreted by a .NET Mono runtime
+bundled with the page.
+
+#+begin_src csharp
+// Program.cs — Frontend
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");          // mounts App component
+builder.Services.AddScoped(sp => new HttpClient
+{
+    BaseAddress = new Uri("http://localhost:5000") // → API Gateway
+});
+builder.Services.AddScoped<ApiService>();
+await builder.Build().RunAsync();
+#+end_src
+
+How it works in this project:
+
+1. The Blazor app is published (dotnet publish → wwwroot/)
+2. Nginx serves the static files (index.html, .dll assemblies, .wasm runtime)
+3. The browser downloads and executes the .NET code
+4. ~HttpClient~ calls go to the API Gateway (~http://localhost:5000~) from the browser
+5. The Gateway proxies to backend services (HeroService, MatchupService)
+
+Nginx config for Blazor:
+
+#+begin_src nginx
+server {
+    listen 80;
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html =404;  # SPA fallback
+    }
+}
+#+end_src
+
+~try_files $uri $uri/ /index.html~ is essential for Blazor routing — without
+it, navigating directly to a sub-page returns 404.
+
+** 16. Health Checks Pattern
+
+Every service exposes a ~GET /healthz~ endpoint that returns ~200 OK~.
+This is used at multiple levels:
+
+*** Docker health check
+#+begin_src yaml
+healthcheck:
+  test: ["CMD", "curl", "-sf", "http://localhost:5001/healthz"]
+  interval: 10s
+  retries: 3
+#+end_src
+
+*** Kubernetes readiness probe
+#+begin_src yaml
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 5001
+  initialDelaySeconds: 5
+  periodSeconds: 10
+#+end_src
+
+*** Consul health check
+#+begin_src csharp
+new AgentServiceCheck
+{
+    HTTP = $"http://{advertiseHost}:5001/healthz",
+    Interval = TimeSpan.FromSeconds(10),
+    DeregisterCriticalServiceAfter = TimeSpan.FromSeconds(30), // auto-deregister
+};
+#+end_src
+
+*** Setup script health check
+#+begin_src sh
+check_endpoint() {
+    curl -sf --connect-timeout 3 --max-time 5 "$url" > /dev/null
+}
+#+end_src
+
+The ASP.NET implementation is minimal:
+
+#+begin_src csharp
+app.MapGet("/healthz", () => Results.Ok("healthy"));
+// Must be placed before Ocelot middleware to bypass it
+#+end_src
+
+** 17. RabbitMQ Event Pattern
+
+RabbitMQ enables asynchronous communication between services via a
+publish/subscribe pattern:
+
+*** Publisher (HeroService)
+#+begin_src csharp
+// POST /api/heroes/reload
+// 1. Fetches all hero IDs from the database
+// 2. Publishes a HeroStatsUpdated event to a topic exchange
+channel.ExchangeDeclare("dotalane.hero", "topic");
+channel.BasicPublish("dotalane.hero", "hero.updated", ...);
+#+end_src
+
+*** Consumer (MatchupService, AdviceService)
+#+begin_src csharp
+public class HeroEventConsumer : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var connection = factory.CreateConnection();
+        var channel = connection.CreateModel();
+        channel.ExchangeDeclare("dotalane.hero", "topic");
+        channel.QueueDeclare("matchup-service.hero-events", durable: true);
+        channel.QueueBind("matchup-service.hero-events",
+                          "dotalane.hero", "hero.updated");
+        // ... consume events ...
+    }
+}
+#+end_src
+
+Key concepts:
+
+- *Exchange* — routing hub ("dotalane.hero", type: topic)
+- *Routing key* — "hero.updated" lets consumers filter messages
+- *Queue* — durable queue per consumer (survives broker restarts)
+- *Binding* — connects a queue to an exchange with a routing key pattern
+- *Event* — lightweight message with event type, timestamp, and data
+
+

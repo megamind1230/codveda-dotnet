@@ -1,0 +1,59 @@
+* Bugs & Issues
+
+** Template
+   - *Date* summary
+     - Symptom:
+     - Cause:
+     - Fix:
+
+** Known issues
+
+   - *2026-06-18* =--human= flag is useless (default is already human-readable)
+     - Symptom: =--human= sets =human=true=, but the default is already =true=.
+     - Cause: =ParseArgs= defaults =human=true= (Program.cs:80), and =--human= just
+              affirms it. The =--human= / =-h= flags do nothing.
+     - Fix: Change default to =human=false= (raw bytes) so =--human= toggles
+            human-readable, or rename to =--raw= flag that sets =human=false=.
+
+   - *2026-06-21* =ScanProgress.Percent= is always 0, making the progress bar
+     show "0.0%" throughout the scan.
+     - Symptom: Progress bar never fills up; always shows ░░░░░ 0.0%.
+     - Cause: =ScanProgress.Percent= (ScanProgress.cs:10) is never set by
+              =DirectoryScanner=. The field defaults to 0 and is never assigned.
+     - Fix:
+       1. Quick: compute an approximate percentage by pre-scanning the total
+          directory count (fast =Directory.GetDirectories= walk without file
+          stats), then report =(dirsScannedSoFar / totalDirs * 100)=.
+       2. Simpler: remove the =Percent= field entirely from the progress bar
+          since we can't know progress without a pre-scan.
+
+   - *2026-06-21* Redundant =lock= around =ConcurrentBag.Add=
+     - Symptom: =lock (_largestFiles)= wraps =_largestFiles.Add(fe)=
+               (DirectoryScanner.cs:116-119).
+     - Cause: =ConcurrentBag= is already thread-safe; wrapping it in =lock=
+              defeats the purpose of using a concurrent collection and adds
+              unnecessary contention.
+     - Fix: Remove the =lock= block; =ConcurrentBag.Add= is safe to call from
+            multiple threads concurrently.
+
+   - *2026-06-21* =Parallel.ForEach= cancellation not using =ParallelOptions=
+     - Symptom: Inside =Parallel.ForEach= (DirectoryScanner.cs:96-126), the
+                loop body calls =ct.ThrowIfCancellationRequested()= manually.
+     - Cause: =Parallel.ForEach= does not receive a =CancellationToken= via
+              =ParallelOptions= — cancellation is done inline, which works but
+              is non-standard.
+     - Fix: Pass =new ParallelOptions { CancellationToken = ct }= as the first
+            argument to =Parallel.ForEach= and remove the manual
+            =ct.ThrowIfCancellationRequested()= from the body.
+
+** Fixme / improvements
+   - [ ] Symlinks are followed by default; could cause infinite loops if
+         a symlink points to a parent. Use =Directory.ResolveLinkTarget=
+         + a visited-set to detect cycles.
+   - [ ] The progress bar line gets messy when the terminal width changes
+         mid-scan. Listen for =Console.WindowWidth= changes or cap output.
+   - [ ] No unit tests. Consider adding tests for =ParseSize()=,
+         =HumanSize()=, and =WildcardToRegex()=.
+   - [ ] =ConfigureAwait(false)= is not used anywhere; technically unnecessary
+         in a console app (no =SynchronizationContext=), but good practice to
+         add for library-style reuse.

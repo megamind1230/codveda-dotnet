@@ -157,11 +157,14 @@
 - BUG 26 (namespace leak) resolved
 
 ** DONE 13.12 Verify each project runs (build passes 0/0)
+- .NET SDK 8.0.125 (also 10.0.109 available)
+- All projects target net8.0
+- EF Core 8.0.11 (SQLite)
 #+begin_src sh
-  dotnet run --project Kanban.Mvc              # localhost:5001
-  dotnet run --project Kanban.RazorPages       # localhost:5002
-  dotnet run --project Kanban.Mixed.Minimal    # localhost:5003
-  dotnet run --project Kanban.Mixed.ApiController  # localhost:5004
+  dotnet run --project Kanban.Mvc              # localhost:5001 ✓ (HTTP 200)
+  dotnet run --project Kanban.RazorPages       # localhost:5002 ✓ (HTTP 200)
+  dotnet run --project Kanban.Mixed.Minimal    # localhost:5003 ✓ (HTTP 200)
+  dotnet run --project Kanban.Mixed.ApiController  # localhost:5004 ✓ (HTTP 200)
 #+end_src
 
 

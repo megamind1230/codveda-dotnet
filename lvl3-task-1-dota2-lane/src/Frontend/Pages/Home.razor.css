@@ -1,0 +1,66 @@
+.hero-count {
+    font-size: 0.75rem;
+    color: #555;
+    text-align: right;
+    margin-bottom: 0.4rem;
+}
+.card {
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+.analyze-btn {
+    display: block;
+    width: 100%;
+    margin-top: 1.25rem;
+    padding: 0.8rem 1.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #2e7d32, #43a047);
+    color: #fff;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+}
+.analyze-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #43a047, #66bb6a);
+    box-shadow: 0 0 24px rgba(76, 175, 80, 0.35);
+    transform: translateY(-2px);
+}
+.analyze-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+.analyze-btn:disabled {
+    background: #2a2a2a;
+    color: #555;
+    cursor: not-allowed;
+}
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 3rem;
+    color: #888;
+}
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #2a2a2a;
+    border-top-color: #64b5f6;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.error {
+    color: #e57373;
+    background: rgba(244, 67, 54, 0.1);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #c62828;
+}

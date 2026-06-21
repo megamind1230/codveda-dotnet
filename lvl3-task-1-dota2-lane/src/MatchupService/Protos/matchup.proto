@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotaLane.MatchupService";
+
+package dotalane.matchup;
+
+service MatchupService {
+  rpc GetMatchup (MatchupRequest) returns (MatchupResponse);
+}
+
+message MatchupRequest {
+  int32 your_hero_id = 1;
+  int32 enemy_hero_id = 2;
+  string lane = 3;
+}
+
+message HeroStatLine {
+  string stat_name = 1;
+  string your_value = 2;
+  string enemy_value = 3;
+  string advantage = 4;
+}
+
+message MatchupResponse {
+  string your_hero_name = 1;
+  string enemy_hero_name = 2;
+  repeated HeroStatLine stats = 3;
+  string lane = 4;
+  string verdict = 5;
+  string advice_reason = 6;
+  repeated string advantages = 7;
+  repeated string disadvantages = 8;
+}

@@ -1,0 +1,58 @@
+name: Deploy FaceRank to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  AZURE_WEBAPP_NAME: 'facerank'
+  AZURE_FUNCTIONAPP_NAME: 'facerank-func'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet publish src/FaceRank.Web --no-build --configuration Release --output web-publish
+      - run: dotnet publish src/FaceRank.Functions --no-build --configuration Release --output func-publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-publish
+          path: web-publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: func-publish
+          path: func-publish
+
+  deploy-web:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
+
+  deploy-func:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: func-publish
+      - uses: azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          package: .

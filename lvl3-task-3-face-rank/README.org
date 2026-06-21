@@ -1,0 +1,477 @@
+* FaceRank — Cloud-Powered "Hot or Not" Elo Voting App
+
+Based on the idea from The Social Network (FaceMash): sign up with
+your photo, vote on who you prefer, and climb the Elo leaderboard.
+
+** Objectives
+- Deploy web applications using *Azure App Services*
+- Use *Azure Blob Storage* for managing avatars
+- Implement *Azure Functions* for serverless computing
+- Set up *CI/CD pipelines* with GitHub Actions
+
+** Tech Stack
+| Component       | Technology                                  |
+|-----------------+---------------------------------------------|
+| Framework       | .NET 10.0 / ASP.NET Core Razor Pages        |
+| SDK Version     | 10.0.109                                    |
+| Target TFM      | net10.0                                     |
+| Database        | SQLite (dev) / Azure SQL (prod, planned)    |
+| Storage         | Local wwwroot/uploads (dev) / Blob (prod)   |
+| Serverless      | Azure Functions v4 (HTTP + Timer triggers)  |
+| Frontend        | Bootstrap 5, jQuery Validation              |
+| Infra as Code   | Bicep                                       |
+| CI/CD           | GitHub Actions (deploy.yml, configured)     |
+
+** Architecture
+```
+Browser ──► FaceRank.Web (Razor Pages)
+                │
+                ├── SQLite (FaceRank.db)
+                ├── Local / Blob Storage (avatars)
+                │
+                └── Azure Functions
+                    ├── ProcessVote (HTTP — Elo calc)
+                    └── LeaderboardSnapshot (Timer — daily)
+```
+
+** Project Structure
+```
+lvl3-task-3-face-rank/
+├── FaceRank.slnx               # Solution file
+├── setup.sh                    # One-command build + run
+├── README.org                  # This file
+├── plan-todos.org              # Dev plan
+├── bugs.org                    # Known bugs & fixes
+├── seed-data/                  # 20 placeholder celebrity images
+├── azure/
+│   └── main.bicep              # Azure infra as code
+├── .github/workflows/
+│   └── deploy.yml              # CI/CD pipeline (build + deploy)
+└── src/
+    ├── FaceRank.Core/          # Shared: Person, Vote, EloService, DbContext
+    │   ├── Models/
+    │   │   ├── Person.cs         # Contestant entity
+    │   │   └── Vote.cs           # Vote entity
+    │   ├── Data/
+    │   │   ├── FaceRankDbContext.cs  # EF Core context
+    │   │   └── DbSeeder.cs         # Seeds 20 celebs + 40 practice votes
+    │   └── Services/
+    │       └── EloService.cs       # Elo rating (K=32, start=1400)
+    ├── FaceRank.Web/           # Razor Pages web app
+    │   ├── Program.cs           # Startup, DI, seed flag
+    │   ├── Pages/
+    │   │   ├── Index.cshtml       # Home — stats + nav cards
+    │   │   ├── Add.cshtml         # Sign-up form (name, photo, gender)
+    │   │   ├── Vote/Index.cshtml  # Pick between 2 people
+    │   │   ├── Leaderboard/Index.cshtml  # Elo rankings by gender
+    │   │   ├── Seed.cshtml        # Manual DB seed trigger
+    │   │   └── Error.cshtml       # Generic error page
+    │   └── Services/
+    │       └── BlobStorageService.cs  # Azure blob / local fallback
+    └── FaceRank.Functions/     # Azure Functions
+        ├── ProcessVoteFunction.cs           # HTTP-triggered Elo calc
+        └── LeaderboardSnapshotFunction.cs   # Timer-triggered daily snapshot
+```
+
+** Pages
+| Page              | Route                  | Description                          |
+|-------------------+------------------------+--------------------------------------|
+| Home              | /                      | Stats + navigation cards             |
+| Add Yourself      | /Add                   | Upload photo, pick gender, join      |
+| Vote Men          | /vote/Male             | Pick between 2 random men            |
+| Vote Women        | /vote/Female           | Pick between 2 random women          |
+| Vote (default)    | /vote                  | Redirects to /vote/Male              |
+| Leaderboard Men   | /leaderboard/Male      | Men ranked by Elo (🥇🥇🥉 medals)     |
+| Leaderboard Women | /leaderboard/Female    | Women ranked by Elo                  |
+| Leaderboard (def) | /leaderboard           | Redirects to /leaderboard/Male       |
+| Seed Data         | /Seed                  | One-click DB seed (20 celebs)        |
+
+** How Elo Works
+- Everyone starts at *1400*
+- K-factor = 32 (chess standard)
+- Winning vs equal opponent: ~ +16 points
+- Beating a higher-rated opponent: more points
+- Losing to a lower-rated opponent: more points lost
+- Formula: ~E_expected = 1 / (1 + 10^((R_opp - R_player) / 400))~
+
+** Seed Data
+- 10 male celebrities (Leonardo DiCaprio, Brad Pitt, Tom Hardy, ...)
+- 10 female celebrities (Scarlett Johansson, Margot Robbie, ...)
+- 40 practice votes with random Elo adjustments
+- Photos stored in ~seed-data/~ and copied to ~wwwroot/uploads/~
+
+** How to Run Locally
+#+BEGIN_SRC sh
+# Option 1: one-command script
+./setup.sh
+
+# Option 2: manual
+cd src/FaceRank.Web
+dotnet run -- --seed
+#+END_SRC
+Open http://localhost:5153
+
+Use ~--seed~ on first run (or after deleting ~FaceRank.db~) to
+populate the database.
+
+** Dev Notes
+- Add ~UseAppHost=false~ in csproj because targeting pack (10.0.4)
+  lags behind SDK (10.0.109)
+- ~AllowMissingPrunePackageData=true~ prevents NU1101 during publish
+- In dev mode, avatars are stored in ~wwwroot/uploads/~ (no Azure
+  needed)
+- In production, set ~Azure:BlobStorage:ConnectionString~ app setting
+  to enable Blob Storage
+- ~SQLitePCLRaw.lib.e_sqlite3~ 2.1.11 (transitive dep) has a known
+  high severity vulnerability; plan to bump EF Core SQLite
+
+** Azure Deployment
+See ~azure/main.bicep~ for Bicep infrastructure:
+- App Service Plan (Free F1) + Web App
+- Storage Account + "avatars" Blob Container (public read)
+- Functions App
+
+Set these app settings after deployment:
+| Name                                       | Purpose                        |
+|--------------------------------------------+--------------------------------|
+| ConnectionStrings:DefaultDb                | SQLite path or Azure SQL conn  |
+| Azure:BlobStorage:ConnectionString         | Storage account access key     |
+| Azure:BlobStorage:ContainerName            | "avatars"                      |
+
+* TIL — Azure Study Notes
+
+This section is a crash course on the Azure services used in this
+project. Read it to understand *what* each service does, *why* it's
+used here, and *how* you can work with them.
+
+** 1. Azure App Service — Hosting Web Apps
+
+*** What it is
+Azure App Service is a fully managed platform (PaaS) for hosting web
+applications, REST APIs, and mobile backends. You upload your code and
+Azure handles the infrastructure (OS, patches, scaling, load
+balancing).
+
+*** In this project
+- ~FaceRank.Web~ (the ASP.NET Core Razor Pages app) is deployed to an
+  App Service.
+- The ~azure/main.bicep~ template creates an *App Service Plan* (Free
+  F1 tier) and a *Web App* resource.
+- App settings like ~ConnectionStrings:DefaultDb~ and
+  ~Azure:BlobStorage:ConnectionString~ are injected via the portal or
+  Bicep — no need to hardcode secrets in your code.
+
+*** Key concepts
+| Concept         | Meaning                                                |
+|-----------------+--------------------------------------------------------|
+| App Service Plan | Defines the compute resources (F1 = Free, B1 = Basic, S1 = Standard) |
+| Web App         | The actual application instance tied to a plan         |
+| App Settings    | Environment variables injected at runtime (for secrets, connection strings) |
+| Deployment Slots | Staging/production slots for zero-downtime deployments |
+
+*** How to deploy manually
+#+BEGIN_SRC sh
+# Publish locally
+dotnet publish src/FaceRank.Web -c Release -o ./publish
+# Deploy via zip (requires Azure CLI: az login first)
+az webapp deploy --resource-group <rg> --name <app-name> --src-path ./publish.zip --type zip
+#+END_SRC
+
+*** 📖 Further reading
+- https://learn.microsoft.com/en-us/azure/app-service/
+
+** 2. Azure Blob Storage — File Storage
+
+*** What it is
+Azure Blob Storage is object storage for unstructured data (images,
+videos, documents). It's like a massive file system in the cloud.
+Each file is stored as a *blob* inside a *container*.
+
+*** In this project
+- Avatar photos are uploaded to a container called ~avatars~.
+- ~BlobStorageService.cs~ wraps the ~Azure.Storage.Blobs~ SDK:
+  - ~UploadAsync~ → uploads a file stream to a blob, returns the
+    public URL.
+  - ~DeleteAsync~ → removes a blob by name.
+- The service has a *dual-mode* design:
+  - In *Development* (local), files go to ~wwwroot/uploads/~.
+  - In *Production* (Azure), files go to Blob Storage.
+  - If Azure fails at runtime, it falls back to local storage.
+
+*** Code walkthrough (~BlobStorageService.cs~)
+#+BEGIN_SRC csharp
+// Constructor: check if we should use Azure
+_useAzure = _env.IsProduction() && !string.IsNullOrEmpty(connString);
+if (_useAzure)
+    _container = new BlobContainerClient(connString, containerName);
+
+// Upload
+if (_useAzure)
+{
+    await _container!.CreateIfNotExistsAsync();
+    var blob = _container.GetBlobClient(fileName);
+    await blob.UploadAsync(content, overwrite: true);
+    return blob.Uri.ToString();  // public URL
+}
+// Fallback to local disk
+var filePath = Path.Combine(_env.WebRootPath, "uploads", fileName);
+await using var fs = new FileStream(filePath, FileMode.Create);
+await content.CopyToAsync(fs);
+return $"/uploads/{fileName}";
+#+END_SRC
+
+*** Key concepts
+| Concept        | Meaning                                                |
+|----------------+--------------------------------------------------------|
+| Storage Account | Top-level Azure resource that holds all your data      |
+| Container      | Like a folder — groups related blobs                   |
+| Blob           | A single file (can be block, append, or page blob)     |
+| Access Tier    | Hot (frequent), Cool (infrequent), Archive (long-term) |
+| SAS Token      | Shared Access Signature — time-limited, scoped URL permissions |
+
+*** 📖 Further reading
+- https://learn.microsoft.com/en-us/azure/storage/blobs/
+
+** 3. Azure Functions — Serverless Computing
+
+*** What it is
+Azure Functions lets you run small pieces of code (functions) without
+managing servers. You pay only for execution time. Functions are
+triggered by events: HTTP requests, timers, queue messages, etc.
+
+*** Two types of triggers used here
+
+**** HTTP Trigger (~ProcessVoteFunction~)
+Runs when someone sends an HTTP ~POST~ request. It calculates Elo
+ratings without needing the main web app to do the math:
+
+#+BEGIN_SRC csharp
+[FunctionName("ProcessVote")]
+public static async Task<IActionResult> Run(
+    [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req,
+    ILogger log)
+{
+    // Read JSON body, calculate Elo, return result
+    var (newWinner, newLoser) = EloService.Calculate(data.WinnerRating, data.LoserRating);
+    return new OkObjectResult(new { newWinnerRating, newLoserRating, winnerDelta, loserDelta });
+}
+#+END_SRC
+
+This decouples the Elo calculation from the web app — you could call
+this function from a mobile app, a CLI, or another service.
+
+**** Timer Trigger (~LeaderboardSnapshotFunction~)
+Runs on a schedule (cron: ~0 0 0 * * * = every midnight). It queries
+the database and logs the current top contestants:
+
+#+BEGIN_SRC csharp
+[FunctionName("LeaderboardSnapshot")]
+public async Task Run(
+    [TimerTrigger("0 0 0 * * *")] TimerInfo myTimer,
+    ILogger log)
+{
+    var topMen = await _db.People.Where(p => p.Gender == "Male")
+        .OrderByDescending(p => p.EloRating).ToListAsync();
+    log.LogInformation($"Top man: {topMen.FirstOrDefault()?.Name}");
+}
+#+END_SRC
+
+This is useful for analytics, daily reports, or triggering other
+workflows based on leaderboard changes.
+
+*** Key concepts
+| Concept          | Meaning                                                |
+|------------------+--------------------------------------------------------|
+| Trigger          | What starts the function (HTTP, Timer, Queue, Blob, etc.) |
+| Binding          | Connects to Azure services (input/output data)         |
+| host.json        | Global config (version, logging, retries)              |
+| local.settings.json | Local dev settings (emulated storage)              |
+| Consumption Plan | Pay-per-execution (free grant of 1M requests/month)    |
+
+*** Running Functions locally
+#+BEGIN_SRC sh
+# Install Azurite (local storage emulator)
+npm install -g azurite
+azurite &
+
+# Start the Functions app
+cd src/FaceRank.Functions
+func start
+#+END_SRC
+
+*** 📖 Further reading
+- https://learn.microsoft.com/en-us/azure/azure-functions/
+
+** 4. Azure DevOps CI/CD — Automated Pipelines
+
+*** What it is
+Azure DevOps is Microsoft's DevOps platform. Pipelines automatically
+build, test, and deploy your code every time you push to a branch.
+
+*** The pipeline in this project (~azure-pipelines.yml~)
+It has 3 stages:
+
+1. *Build* — on an Ubuntu agent:
+   - ~UseDotNet@2~ installs the .NET SDK
+   - ~DotNetCoreCLI@2~ runs restore → build → publish for both the Web
+     App and Functions
+   - ~PublishBuildArtifacts@1~ uploads the output so later stages can
+     use it
+
+2. *DeployWeb* — downloads the web artifact and deploys to App Service
+   via ~AzureWebApp@1~
+
+3. *DeployFunctions* — downloads the function artifact and deploys via
+   ~AzureFunctionApp@1~
+
+*** Key concepts
+| Concept            | Meaning                                                |
+|--------------------+--------------------------------------------------------|
+| Pipeline           | A YAML or classic definition of your CI/CD process     |
+| Agent              | The machine that runs your pipeline (Microsoft-hosted or self-hosted) |
+| Stage              | A logical division (Build → Deploy → Test)             |
+| Job                | A set of steps that run on the same agent              |
+| Task               | A single operation (e.g., ~DotNetCoreCLI@2~)           |
+| Artifact           | Build output saved for later stages or releases        |
+| Service Connection | A stored credential linking Azure DevOps to your Azure subscription |
+
+*** How to set up Azure DevOps for this project
+1. Go to https://dev.azure.com and create a project.
+2. Create a new repository and push this code.
+3. In Project Settings → Service Connections, add an *Azure Resource
+   Manager* connection (authorize with your Azure subscription).
+4. Name the service connection and set it as the pipeline variable
+   ~AZURE_SERVICE_CONNECTION~.
+5. Create a new pipeline → select "Azure Repos Git" → pick your repo
+   → select "Existing Azure Pipelines YAML file" → choose
+   ~azure-pipelines.yml~.
+6. Run the pipeline. First time will deploy to a fresh App Service and
+   Functions App (requires the Azure resources to exist — run the
+   Bicep template first, or extend the pipeline to include
+   infrastructure deployment).
+
+*** 📖 Further reading
+- https://learn.microsoft.com/en-us/azure/devops/pipelines/
+
+** 5. Bicep — Infrastructure as Code
+
+*** What it is
+Bicep is a domain-specific language (DSL) for deploying Azure
+resources. It's a cleaner alternative to ARM JSON templates. You
+describe *what* you want (App Service, Storage Account, etc.) and
+Bicep generates the ARM template and provisions it.
+
+*** In this project (~azure/main.bicep~)
+Creates these resources:
+1. *Storage Account* (~StorageV2~, ~Standard_LRS~) — holds the
+   ~avatars~ blob container (public read access for serving images)
+2. *App Service Plan* (Free F1 tier) — shared compute for both Web
+   App and Functions
+3. *Web App* — hosts ~FaceRank.Web~ with app settings for DB
+   connection, Blob Storage key, and ~ASPNETCORE_ENVIRONMENT~
+4. *Functions App* — hosts the two Azure Functions, wired to the same
+   storage account via ~AzureWebJobsStorage~
+
+*** How to deploy with Bicep
+#+BEGIN_SRC sh
+az login
+az deployment group create \
+  --resource-group <your-rg> \
+  --template-file azure/main.bicep
+#+END_SRC
+
+*** 📖 Further reading
+- https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/
+
+** 6. Quick Reference — Azure CLI commands you will use most
+
+| Task                                      | Command                                                   |
+|-------------------------------------------+-----------------------------------------------------------|
+| Login to Azure                            | ~az login~                                                |
+| List subscriptions                        | ~az account list --output table~                           |
+| Set active subscription                   | ~az account set --subscription <id>~                       |
+| Create resource group                     | ~az group create --name <rg> --location eastus~            |
+| Deploy Bicep template                     | ~az deployment group create --resource-group <rg> --template-file azure/main.bicep~ |
+| List App Services                         | ~az webapp list --resource-group <rg> --output table~      |
+| Stream App Service logs                   | ~az webapp log tail --resource-group <rg> --name <app>~    |
+| List Storage Account keys                 | ~az storage account keys list --account-name <name>~       |
+| Upload blob                               | ~az storage blob upload --account-name <name> --container-name avatars --name <file> --file <path>~ |
+| List blobs                                | ~az storage blob list --account-name <name> --container-name avatars --output table~ |
+| Show Function app logs                    | ~az webapp log tail --resource-group <rg> --name <func-app>~ |
+
+** 7. Architecture Diagram (Azure view)
+
+```
+                     GitHub / Azure DevOps
+                           │
+                    [push to main]
+                           │
+                     ┌─────┴──────┐
+                     │  Pipeline  │
+                     └─────┬──────┘
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+    ┌─────▼─────┐   ┌─────▼──────┐   ┌─────▼──────────┐
+    │  Build &   │   │  Deploy    │   │  Deploy        │
+    │  Publish   │   │  Web App   │   │  Functions     │
+    └────────────┘   └─────┬──────┘   └─────┬──────────┘
+                           │                │
+                    ┌──────▼──────┐   ┌─────▼──────────┐
+                    │ App Service │   │ Functions App  │
+                    │ facerank    │   │ facerank-func  │
+                    │             │   │                │
+                    │  .NET 10    │   │ ProcessVote    │
+                    │  Razor      │   │ (HTTP trigger) │
+                    │  Pages      │   │                │
+                    │             │   │ Leaderboard    │
+                    │  SQLite DB  │   │ Snapshot       │
+                    │  (FaceRank) │   │ (Timer trigger)│
+                    └──────┬──────┘   └────────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │ Blob        │
+                    │ Storage     │
+                    │  - avatars  │
+                    │  container  │
+                    └─────────────┘
+
+User ──► Browser ──► facerank.azurewebsites.net
+                           │
+                    [avatar URLs point to blob storage]
+```
+
+** 8. Glossary
+
+| Term              | What it means in plain English                          |
+|-------------------+---------------------------------------------------------|
+| PaaS              | Platform as a Service — you deploy code, Azure handles servers |
+| IaaS              | Infrastructure as a Service — you manage VMs yourself   |
+| Serverless        | Code runs only when triggered; no server to manage      |
+| Bicep             | A template language to declare Azure resources           |
+| ARM Template      | The JSON that Bicep compiles to (Azure Resource Manager) |
+| Blob              | Binary Large Object — any file (image, video, backup)   |
+| SAS Token         | A time-limited, permission-scoped URL for secure access |
+| App Service Plan  | The VMs your app runs on (shared or dedicated)          |
+| Consumption Plan  | Serverless hosting — pay per execution, auto-scales     |
+| CI/CD             | Continuous Integration / Continuous Deployment          |
+| Artifact          | A build output package ready for deployment             |
+| Service Connection | A stored credential that lets Azure DevOps talk to Azure |
+
+** CI/CD
+Two CI/CD pipelines are provided:
+
+*** GitHub Actions (~.github/workflows/deploy.yml~)
+Triggered on push to ~main~ or manual dispatch. Covers:
+1. Restore + build + publish Web App and Functions
+2. Upload artifacts
+3. Deploy Web App to Azure App Service (via ~azure/webapps-deploy@v3~)
+4. Deploy Azure Functions (via ~azure/functions-action@v1~)
+
+*** Azure DevOps (~azure-pipelines.yml~)
+Same stages translated to Azure DevOps YAML:
+1. Build stage — restore, build, publish, upload artifacts
+2. DeployWeb stage — deploy to Azure App Service
+3. DeployFunctions stage — deploy to Azure Functions
+
+Requires an Azure DevOps project with a service connection named ~AZURE_SERVICE_CONNECTION~ (configurable as a pipeline variable).

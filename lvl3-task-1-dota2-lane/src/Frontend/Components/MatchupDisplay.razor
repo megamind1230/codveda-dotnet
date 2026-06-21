@@ -1,0 +1,53 @@
+@using DotaLane.Frontend.Models
+
+@if (Stats is { Count: > 0 })
+{
+    <div class="matchup-card">
+        <div class="matchup-header">
+            <span class="hero-name you">@YourHeroName</span>
+            <span class="vs-badge">VS</span>
+            <span class="hero-name enemy">@EnemyHeroName</span>
+        </div>
+        <table class="stat-table">
+            <thead>
+                <tr>
+                    <th class="col-stat">Stat</th>
+                    <th class="col-value you">@YourHeroName</th>
+                    <th class="col-sym"></th>
+                    <th class="col-value enemy">@EnemyHeroName</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var stat in Stats)
+                {
+                    <tr class="stat-row @GetAdvantageClass(stat.Advantage)">
+                        <td class="stat-name">@stat.StatName</td>
+                        <td class="stat-value you">@stat.YourValue</td>
+                        <td class="stat-sym">@GetSymbol(stat.Advantage)</td>
+                        <td class="stat-value enemy">@stat.EnemyValue</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter] public string YourHeroName { get; set; } = "";
+    [Parameter] public string EnemyHeroName { get; set; } = "";
+    [Parameter] public List<StatLineDto> Stats { get; set; } = new();
+
+    private static string GetSymbol(string advantage) => advantage switch
+    {
+        "you" => ">",
+        "enemy" => "<",
+        _ => "~="
+    };
+
+    private static string GetAdvantageClass(string advantage) => advantage switch
+    {
+        "you" => "adv-you",
+        "enemy" => "adv-enemy",
+        _ => "adv-tie"
+    };
+}

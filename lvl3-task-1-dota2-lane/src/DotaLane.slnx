@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/AdviceService/">
+    <Project Path="AdviceService/DotaLane.AdviceService.csproj" />
+  </Folder>
+  <Folder Name="/ApiGateway/">
+    <Project Path="ApiGateway/DotaLane.ApiGateway.csproj" />
+  </Folder>
+  <Folder Name="/Frontend/">
+    <Project Path="Frontend/DotaLane.Frontend.csproj" />
+  </Folder>
+  <Folder Name="/HeroService/">
+    <Project Path="HeroService/DotaLane.HeroService.csproj" />
+  </Folder>
+  <Folder Name="/MatchupService/">
+    <Project Path="MatchupService/DotaLane.MatchupService.csproj" />
+  </Folder>
+</Solution>

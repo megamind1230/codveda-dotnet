@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FaceRank.Core/FaceRank.Core.csproj" />
+    <Project Path="src/FaceRank.Functions/FaceRank.Functions.csproj" />
+    <Project Path="src/FaceRank.Web/FaceRank.Web.csproj" />
+  </Folder>
+</Solution>

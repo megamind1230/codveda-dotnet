@@ -1,0 +1,107 @@
+services:
+  consul:
+    image: hashicorp/consul:latest
+    ports:
+      - "8500:8500"
+    healthcheck:
+      test: ["CMD", "consul", "info"]
+      interval: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 10s
+      retries: 5
+
+  hero-service:
+    build:
+      context: .
+      dockerfile: src/HeroService/Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - RABBITMQ_HOST=rabbitmq
+      - ADVERTISE_HOST=hero-service
+    depends_on:
+      consul:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  advice-service:
+    build:
+      context: .
+      dockerfile: src/AdviceService/Dockerfile
+    ports:
+      - "5003:5003"
+      - "5005:5005"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - RABBITMQ_HOST=rabbitmq
+      - ADVERTISE_HOST=advice-service
+    depends_on:
+      consul:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  matchup-service:
+    build:
+      context: .
+      dockerfile: src/MatchupService/Dockerfile
+    ports:
+      - "5002:5002"
+      - "5004:5004"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - RABBITMQ_HOST=rabbitmq
+      - ADVERTISE_HOST=matchup-service
+      - HERO_SERVICE_URL=http://hero-service:5001
+      - ADVICE_SERVICE_URL=http://advice-service:5003
+    depends_on:
+      consul:
+        condition: service_healthy
+      hero-service:
+        condition: service_started
+      advice-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateway/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - ADVERTISE_HOST=api-gateway
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      consul:
+        condition: service_healthy
+      hero-service:
+        condition: service_started
+      matchup-service:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: src/Frontend/Dockerfile
+    ports:
+      - "5010:80"
+    depends_on:
+      - api-gateway
+    restart: unless-stopped

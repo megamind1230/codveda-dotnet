@@ -1,0 +1,80 @@
+@using DotaLane.Frontend.Models
+
+<div class="hero-select">
+    <div class="select-group">
+        <label for="lane-select">Lane</label>
+        <div class="select-wrapper">
+            <span class="select-icon">@GetLaneIcon(SelectedLane)</span>
+            <select id="lane-select" @bind="SelectedLane" @bind:after="OnLaneChanged">
+                <option value="mid">MID</option>
+                <option value="safe">SAFE</option>
+                <option value="off">OFF</option>
+            </select>
+        </div>
+    </div>
+    <div class="select-group">
+        <label for="your-hero-select">Your Hero</label>
+        <div class="select-wrapper">
+            <span class="select-icon">🛡</span>
+            <select id="your-hero-select" @bind="SelectedYourHeroId" @bind:after="NotifyChange">
+                <option value="">-- Select --</option>
+                @foreach (var hero in FilteredHeroes)
+                {
+                    <option value="@hero.Id">@hero.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+    <div class="select-group">
+        <label for="enemy-hero-select">Enemy Hero</label>
+        <div class="select-wrapper">
+            <span class="select-icon">⚔</span>
+            <select id="enemy-hero-select" @bind="SelectedEnemyHeroId" @bind:after="NotifyChange">
+                <option value="">-- Select --</option>
+                @foreach (var hero in FilteredHeroes.Where(h => h.Id.ToString() != SelectedYourHeroId))
+                {
+                    <option value="@hero.Id">@hero.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<HeroDto> Heroes { get; set; } = new();
+    [Parameter] public string SelectedLane { get; set; } = "mid";
+    [Parameter] public string SelectedYourHeroId { get; set; } = "";
+    [Parameter] public string SelectedEnemyHeroId { get; set; } = "";
+
+    [Parameter] public EventCallback<string> SelectedLaneChanged { get; set; }
+    [Parameter] public EventCallback<string> SelectedYourHeroIdChanged { get; set; }
+    [Parameter] public EventCallback<string> SelectedEnemyHeroIdChanged { get; set; }
+
+    private List<HeroDto> FilteredHeroes => Heroes
+        .Where(h => string.Equals(h.Lane, SelectedLane, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(h => h.Name)
+        .ToList();
+
+    private static string GetLaneIcon(string lane) => lane switch
+    {
+        "mid" => "🏛",
+        "safe" => "🏡",
+        "off" => "🌲",
+        _ => "?"
+    };
+
+    private async Task OnLaneChanged()
+    {
+        await SelectedLaneChanged.InvokeAsync(SelectedLane);
+        SelectedYourHeroId = "";
+        SelectedEnemyHeroId = "";
+        await SelectedYourHeroIdChanged.InvokeAsync(SelectedYourHeroId);
+        await SelectedEnemyHeroIdChanged.InvokeAsync(SelectedEnemyHeroId);
+    }
+
+    private async Task NotifyChange()
+    {
+        await SelectedYourHeroIdChanged.InvokeAsync(SelectedYourHeroId);
+        await SelectedEnemyHeroIdChanged.InvokeAsync(SelectedEnemyHeroId);
+    }
+}

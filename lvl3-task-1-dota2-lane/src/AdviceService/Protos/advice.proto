@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotaLane.AdviceService";
+
+package dotalane.advice;
+
+service AdviceService {
+  rpc GetLaneAdvice (AdviceRequest) returns (AdviceResponse);
+}
+
+message HeroStats {
+  int32 hero_id = 1;
+  string name = 2;
+  int32 damage_min = 3;
+  int32 damage_max = 4;
+  int32 attack_range = 5;
+  double base_attack_time = 6;
+  double armor = 7;
+  int32 move_speed = 8;
+  int32 day_vision = 9;
+  int32 night_vision = 10;
+  double int_gain = 11;
+  double agi_gain = 12;
+  string primary_attr = 13;
+}
+
+message AdviceRequest {
+  HeroStats your_hero = 1;
+  HeroStats enemy_hero = 2;
+  string lane = 3;
+}
+
+message AdviceResponse {
+  string verdict = 1;
+  string reason = 2;
+  repeated string advantages = 3;
+  repeated string disadvantages = 4;
+}

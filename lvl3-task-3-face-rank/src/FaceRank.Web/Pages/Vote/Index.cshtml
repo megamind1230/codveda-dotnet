@@ -1,0 +1,70 @@
+@page "/vote/{gender}"
+@model FaceRank.Web.Pages.Vote.IndexModel
+@{
+    var display = Model.Gender == "Male" ? "Men" : "Women";
+    ViewData["Title"] = $"Vote - {display}";
+}
+
+<div class="text-center">
+    <h2 class="mb-2">Vote — @display</h2>
+    <p class="text-muted mb-4">Who do you prefer?</p>
+
+    @if (Model.NoContestants)
+    {
+        <div class="alert alert-info">Not enough contestants to vote. <a asp-page="/Add">Add yourself!</a></div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-center align-items-center gap-5 flex-wrap">
+            <div class="text-center">
+                <div class="card shadow" style="width: 260px;">
+                    @if (!string.IsNullOrEmpty(Model.Left?.AvatarUrl))
+                    {
+                        <img src="@Model.Left.AvatarUrl" class="card-img-top" style="height: 260px; object-fit: cover;" alt="@Model.Left.Name" />
+                    }
+                    else
+                    {
+                        <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center text-white" style="height: 260px; font-size: 4rem;">
+                            @Model.Left?.Name[0]
+                        </div>
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@Model.Left?.Name</h5>
+                        <p class="text-muted small">Elo: @Model.Left?.EloRating</p>
+                        <form method="post">
+                            <input type="hidden" name="winnerId" value="@Model.Left?.Id" />
+                            <input type="hidden" name="loserId" value="@Model.Right?.Id" />
+                            <button type="submit" class="btn btn-primary w-100">Pick</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fs-1 fw-bold text-muted">VS</div>
+
+            <div class="text-center">
+                <div class="card shadow" style="width: 260px;">
+                    @if (!string.IsNullOrEmpty(Model.Right?.AvatarUrl))
+                    {
+                        <img src="@Model.Right.AvatarUrl" class="card-img-top" style="height: 260px; object-fit: cover;" alt="@Model.Right.Name" />
+                    }
+                    else
+                    {
+                        <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center text-white" style="height: 260px; font-size: 4rem;">
+                            @Model.Right?.Name[0]
+                        </div>
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@Model.Right?.Name</h5>
+                        <p class="text-muted small">Elo: @Model.Right?.EloRating</p>
+                        <form method="post">
+                            <input type="hidden" name="winnerId" value="@Model.Right?.Id" />
+                            <input type="hidden" name="loserId" value="@Model.Left?.Id" />
+                            <button type="submit" class="btn btn-primary w-100">Pick</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

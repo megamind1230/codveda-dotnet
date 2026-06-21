@@ -1,0 +1,51 @@
+.hero-select {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.select-group {
+    flex: 1;
+    min-width: 180px;
+}
+.select-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #999;
+}
+.select-wrapper {
+    display: flex;
+    align-items: center;
+    background: #222;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 0 0.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.select-wrapper:focus-within {
+    border-color: #64b5f6;
+    box-shadow: 0 0 0 2px rgba(100, 181, 246, 0.15);
+}
+.select-icon {
+    font-size: 1.1rem;
+    margin-right: 0.4rem;
+    line-height: 1;
+}
+.select-wrapper select {
+    flex: 1;
+    padding: 0.6rem 0.4rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #e0e0e0;
+    font-size: 0.95rem;
+    outline: none;
+    cursor: pointer;
+}
+.select-wrapper select option {
+    background: #222;
+    color: #e0e0e0;
+}
